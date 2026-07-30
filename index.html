@@ -120,6 +120,16 @@
   .go-best{ font-size:12px; letter-spacing:0.1em; color:var(--muted); margin-bottom:26px; }
   .go-label{ font-size:12px; letter-spacing:0.2em; text-transform:uppercase; color:var(--danger); margin-bottom:10px; }
   .version-badge{ margin-top:20px; font-size:11px; letter-spacing:0.08em; color:var(--muted); opacity:0.6; }
+  .btn-secondary{
+    margin-top:14px;
+    border-color:var(--muted);
+    color:var(--muted);
+    font-size:13px;
+    padding:11px 28px;
+    display:none;
+  }
+  .btn-secondary:hover{ background:rgba(219,228,240,0.06); box-shadow:none; }
+  .btn-secondary.visible{ display:inline-block; }
   @media (prefers-reduced-motion: reduce){ .btn{ transition:none; } }
 </style>
 </head>
@@ -146,6 +156,7 @@
     </div>
   </div>
   <button class="btn" id="startBtn">Zacznij</button>
+  <button class="btn btn-secondary" id="installBtn">Zainstaluj</button>
   <div class="version-badge" id="versionBadge"></div>
 </div>
 
@@ -160,7 +171,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.003.001";
+const APP_VERSION = "0.004.000";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -173,6 +184,28 @@ const APP_VERSION = "0.003.001";
   const bestScoreLine = document.getElementById('bestScoreLine');
 
   document.getElementById('versionBadge').textContent = 'v' + APP_VERSION;
+
+  // ---- install prompt (browsers don't always surface their own) ----
+  const installBtn = document.getElementById('installBtn');
+  let deferredInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    installBtn.classList.add('visible');
+  });
+  installBtn.addEventListener('click', async () => {
+    if(!deferredInstallPrompt) return;
+    installBtn.disabled = true;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installBtn.classList.remove('visible');
+    installBtn.disabled = false;
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    installBtn.classList.remove('visible');
+  });
 
   let W, H, DPR;
   function resize(){
@@ -214,11 +247,10 @@ const APP_VERSION = "0.003.001";
   const RECORD_STEP = 1000/45;
   const SAMPLE_RATE = 1000/RECORD_STEP; // samples/sec an echo's path was recorded at
 
-  // echo playback speed ramps up over the course of a run: slow, forgiving start,
-  // faster and more relentless the longer you survive.
-  const ECHO_SPEED_START = 0.55;
-  const ECHO_SPEED_MAX = 1.9;
-  const ECHO_SPEED_RAMP_TIME = 45; // seconds of play to reach max speed
+  // echo playback speed ramps up over the course of a run, with no ceiling: very slow,
+  // forgiving start, relentlessly faster the longer you survive.
+  const ECHO_SPEED_START = 0.25;
+  const ECHO_SPEED_ACCEL = 0.01; // added to the multiplier per second, unbounded
 
   let state = 'idle';
   let player, echoes, recording, recTimer, sparkPos, score, elapsed, lastTime, sampleAcc;
@@ -249,8 +281,7 @@ const APP_VERSION = "0.003.001";
   function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.sqrt(dx*dx+dy*dy); }
 
   function echoSpeedMultiplier(){
-    const t = Math.min(elapsed / ECHO_SPEED_RAMP_TIME, 1);
-    return ECHO_SPEED_START + (ECHO_SPEED_MAX - ECHO_SPEED_START) * t;
+    return ECHO_SPEED_START + ECHO_SPEED_ACCEL * elapsed;
   }
 
   function startGame(){
@@ -290,7 +321,7 @@ const APP_VERSION = "0.003.001";
     elapsed += dt;
 
     if(recTimer >= RECORD_INTERVAL && recording.length > 4){
-      echoes.push({ path: recording, idx: 0, posAcc: 0 });
+      echoes.push({ path: recording, posAcc: 0, x: recording[0].x, y: recording[0].y });
       recording = [];
       recTimer = 0;
     }
@@ -298,17 +329,22 @@ const APP_VERSION = "0.003.001";
     const speed = echoSpeedMultiplier();
 
     // advance every echo ever recorded and check collisions — none of them expire,
-    // so the field only ever gets more crowded the longer you survive.
+    // so the field only ever gets more crowded the longer you survive. Position is
+    // interpolated between recorded samples so motion stays smooth at any speed,
+    // instead of snapping between the ~45 samples/sec the path was recorded at.
     for(let i = 0; i < echoes.length; i++){
       const e = echoes[i];
+      const len = e.path.length;
 
       e.posAcc += dt * SAMPLE_RATE * speed;
-      while(e.posAcc >= 1){
-        e.idx = (e.idx + 1) % e.path.length;
-        e.posAcc -= 1;
-      }
-      const p = e.path[e.idx];
-      const touching = dist(player, p) < PLAYER_R + ECHO_R - 2;
+      const base = Math.floor(e.posAcc);
+      const frac = e.posAcc - base;
+      const a = e.path[base % len];
+      const b = e.path[(base + 1) % len];
+      e.x = a.x + (b.x - a.x) * frac;
+      e.y = a.y + (b.y - a.y) * frac;
+
+      const touching = dist(player, e) < PLAYER_R + ECHO_R - 2;
 
       if(touching){
         endGame();
@@ -343,8 +379,7 @@ const APP_VERSION = "0.003.001";
     glowDot(sparkPos.x, sparkPos.y, SPARK_R*pulse, '#fbbf24', 'rgba(251,191,36,0.65)', 16);
 
     for(const e of echoes){
-      const p = e.path[e.idx];
-      glowDot(p.x, p.y, ECHO_R, '#a78bfa', 'rgba(167,139,250,0.65)', 14);
+      glowDot(e.x, e.y, ECHO_R, '#a78bfa', 'rgba(167,139,250,0.65)', 14);
     }
 
     glowDot(player.x, player.y, PLAYER_R, '#5eead4', 'rgba(94,234,212,0.7)', 20);
