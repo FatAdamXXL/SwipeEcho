@@ -1,7 +1,7 @@
 {
-  "name": "SwipeEcho — ECHO",
-  "short_name": "ECHO",
-  "description": "ECHO — unikaj świeżych ech swojej przeszłości i zbieraj dojrzałe, zanim znikną.",
+  "name": "SwipeEcho",
+  "short_name": "SwipeEcho",
+  "description": "SwipeEcho — unikaj echa własnej trasy sprzed chwili, zanim Cię dogoni.",
   "start_url": "./index.html",
   "scope": "./",
   "id": "/SwipeEcho/",

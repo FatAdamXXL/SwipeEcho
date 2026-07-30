@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>ECHO — SwipeEcho</title>
-<meta name="description" content="ECHO — unikaj świeżych ech swojej przeszłości i zbieraj dojrzałe, zanim znikną.">
+<title>SwipeEcho</title>
+<meta name="description" content="SwipeEcho — unikaj echa własnej trasy sprzed chwili, zanim Cię dogoni.">
 <meta name="theme-color" content="#0a0e1a">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 
@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" href="icons/icon-512.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="ECHO">
+<meta name="apple-mobile-web-app-title" content="SwipeEcho">
 <meta name="mobile-web-app-capable" content="yes">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -68,8 +68,8 @@
   .title{
     font-family:'Space Grotesk', sans-serif;
     font-weight:700;
-    font-size:clamp(44px, 13vw, 80px);
-    letter-spacing:0.06em;
+    font-size:clamp(36px, 11vw, 68px);
+    letter-spacing:0.02em;
     color:var(--player);
     text-shadow: 0 0 24px var(--player-glow), 0 0 60px var(--player-glow);
     margin:0 0 6px 0;
@@ -119,17 +119,7 @@
   }
   .go-best{ font-size:12px; letter-spacing:0.1em; color:var(--muted); margin-bottom:26px; }
   .go-label{ font-size:12px; letter-spacing:0.2em; text-transform:uppercase; color:var(--danger); margin-bottom:10px; }
-  .floater{
-    position:fixed; pointer-events:none; z-index:6;
-    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:16px;
-    color:var(--treasure); text-shadow:0 0 12px var(--treasure-glow);
-    animation: floatUp 0.9s ease-out forwards;
-  }
-  @keyframes floatUp{
-    0%{ opacity:1; transform:translateY(0); }
-    100%{ opacity:0; transform:translateY(-38px); }
-  }
-  @media (prefers-reduced-motion: reduce){ .btn{ transition:none; } .floater{ animation:none; opacity:0; } }
+  @media (prefers-reduced-motion: reduce){ .btn{ transition:none; } }
 </style>
 </head>
 <body>
@@ -142,8 +132,8 @@
 </div>
 
 <div class="overlay" id="startScreen">
-  <div class="title">ECHO</div>
-  <div class="subtitle">twoja przeszłość dojrzewa</div>
+  <div class="title">SwipeEcho</div>
+  <div class="subtitle">uciekaj przed własną przeszłością</div>
   <div class="legend">
     <div class="legend-row">
       <div class="dot player"></div>
@@ -151,11 +141,7 @@
     </div>
     <div class="legend-row">
       <div class="dot danger"></div>
-      <div class="legend-text"><b>Świeże echo</b> — powtarza Twoją trasę sprzed chwili. Dotknięcie = koniec gry.</div>
-    </div>
-    <div class="legend-row">
-      <div class="dot treasure"></div>
-      <div class="legend-text"><b>Dojrzałe echo</b> — po kilku sekundach niebezpieczeństwo mija i zamienia się w skarb. Zbierz je, zanim zniknie na zawsze.</div>
+      <div class="legend-text"><b>Echo</b> — powtarza Twoją trasę sprzed chwili. Dotknięcie = koniec gry. Z czasem rusza się coraz szybciej, aż zniknie.</div>
     </div>
   </div>
   <button class="btn" id="startBtn">Zacznij</button>
@@ -215,15 +201,19 @@
   const PLAYER_R = 9;
   const ECHO_R = 8;
   const SPARK_R = 7;
-  const RECORD_INTERVAL = 4.6;   // seconds between new echoes being born
-  const DANGER_DURATION = 7.0;   // seconds an echo is lethal
-  const TREASURE_DURATION = 5.0; // seconds an echo is harvestable before vanishing
+  const RECORD_INTERVAL = 4.6;    // seconds between new echoes being born
+  const DANGER_DURATION = 12.0;   // seconds an echo is lethal before it fades away
   const RECORD_STEP = 1000/45;
-  const HARVEST_BONUS = 5;
+  const SAMPLE_RATE = 1000/RECORD_STEP; // samples/sec an echo's path was recorded at
+
+  // echo playback speed ramps up over the course of a run: slow, forgiving start,
+  // faster and more relentless the longer you survive.
+  const ECHO_SPEED_START = 0.55;
+  const ECHO_SPEED_MAX = 1.9;
+  const ECHO_SPEED_RAMP_TIME = 45; // seconds of play to reach max speed
 
   let state = 'idle';
   let player, echoes, recording, recTimer, sparkPos, score, elapsed, lastTime, sampleAcc;
-  let floaters = [];
 
   function resetGame(){
     player = { x: W/2, y: H/2 };
@@ -235,8 +225,6 @@
     elapsed = 0;
     sampleAcc = 0;
     sparkPos = randomSpark();
-    floaters.forEach(f => f.el.remove());
-    floaters = [];
     updateHud();
   }
 
@@ -247,27 +235,14 @@
 
   function updateHud(){
     hudScore.textContent = score;
-    const dangerCount = echoes.filter(e => phaseOf(e) === 'danger').length;
-    hudEchoes.textContent = dangerCount;
+    hudEchoes.textContent = echoes.length;
   }
 
   function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.sqrt(dx*dx+dy*dy); }
 
-  function phaseOf(e){
-    const age = elapsed - e.bornAt;
-    if(age < DANGER_DURATION) return 'danger';
-    if(age < DANGER_DURATION + TREASURE_DURATION) return 'treasure';
-    return 'expired';
-  }
-
-  function spawnFloater(x, y, text){
-    const el = document.createElement('div');
-    el.className = 'floater';
-    el.textContent = text;
-    el.style.left = x + 'px';
-    el.style.top = y + 'px';
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), 950);
+  function echoSpeedMultiplier(){
+    const t = Math.min(elapsed / ECHO_SPEED_RAMP_TIME, 1);
+    return ECHO_SPEED_START + (ECHO_SPEED_MAX - ECHO_SPEED_START) * t;
   }
 
   function startGame(){
@@ -307,31 +282,33 @@
     elapsed += dt;
 
     if(recTimer >= RECORD_INTERVAL && recording.length > 4){
-      echoes.push({ path: recording, idx: 0, bornAt: elapsed });
+      echoes.push({ path: recording, idx: 0, posAcc: 0, bornAt: elapsed });
       recording = [];
       recTimer = 0;
     }
 
-    // advance echoes, handle phase transitions, collisions, expiry
+    const speed = echoSpeedMultiplier();
+
+    // advance echoes, handle collisions and expiry
     for(let i = echoes.length - 1; i >= 0; i--){
       const e = echoes[i];
-      const phase = phaseOf(e);
-      if(phase === 'expired'){
+      const age = elapsed - e.bornAt;
+      if(age >= DANGER_DURATION){
         echoes.splice(i,1);
         continue;
       }
-      e.idx = (e.idx + 1) % e.path.length;
+
+      e.posAcc += dt * SAMPLE_RATE * speed;
+      while(e.posAcc >= 1){
+        e.idx = (e.idx + 1) % e.path.length;
+        e.posAcc -= 1;
+      }
       const p = e.path[e.idx];
       const touching = dist(player, p) < PLAYER_R + ECHO_R - 2;
 
-      if(phase === 'danger' && touching){
+      if(touching){
         endGame();
         return;
-      }
-      if(phase === 'treasure' && touching){
-        score += HARVEST_BONUS;
-        spawnFloater(p.x, p.y, '+' + HARVEST_BONUS);
-        echoes.splice(i,1);
       }
     }
 
@@ -364,26 +341,15 @@
     for(const e of echoes){
       const p = e.path[e.idx];
       const age = elapsed - e.bornAt;
-      if(age < DANGER_DURATION){
-        // danger phase — warn in the final 1.5s by pulsing brighter/larger
-        const timeLeft = DANGER_DURATION - age;
-        let r = ECHO_R, glow = 14;
-        if(timeLeft < 1.5){
-          const flick = 1 + Math.sin(performance.now()/70)*0.25;
-          r = ECHO_R * flick;
-          glow = 22;
-        }
-        glowDot(p.x, p.y, r, '#a78bfa', 'rgba(167,139,250,0.65)', glow);
-      } else {
-        // treasure phase — golden, shrinking urgency as it nears expiry
-        const treasureAge = age - DANGER_DURATION;
-        const remaining = 1 - (treasureAge / TREASURE_DURATION);
-        const sparkle = 1 + Math.sin(performance.now()/130 + p.x)*0.18;
-        ctx.save();
-        ctx.globalAlpha = 0.55 + remaining*0.45;
-        glowDot(p.x, p.y, ECHO_R*0.85*sparkle, '#fbbf24', 'rgba(251,191,36,0.7)', 18);
-        ctx.restore();
+      // warn in the final 1.5s before an echo fades away by pulsing brighter/larger
+      const timeLeft = DANGER_DURATION - age;
+      let r = ECHO_R, glow = 14;
+      if(timeLeft < 1.5){
+        const flick = 1 + Math.sin(performance.now()/70)*0.25;
+        r = ECHO_R * flick;
+        glow = 22;
       }
+      glowDot(p.x, p.y, r, '#a78bfa', 'rgba(167,139,250,0.65)', glow);
     }
 
     glowDot(player.x, player.y, PLAYER_R, '#5eead4', 'rgba(94,234,212,0.7)', 20);

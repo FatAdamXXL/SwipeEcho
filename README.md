@@ -1,6 +1,6 @@
-# SwipeEcho — ECHO
+# SwipeEcho
 
-Minimalistyczna gra przeglądarkowa: unikaj świeżych ech swojej własnej trasy sprzed kilku sekund, a gdy dojrzeją i zamienią się w skarb — zbierz je, zanim znikną na zawsze.
+Minimalistyczna gra przeglądarkowa: unikaj echa swojej własnej trasy sprzed kilku sekund, zanim Cię dogoni. Im dłużej przeżyjesz, tym szybciej echo się porusza.
 
 Steruj palcem (dotyk) lub kursorem myszy.
 
@@ -9,8 +9,7 @@ Gra działa jako PWA — można ją zainstalować na telefonie lub pulpicie i gr
 ## Rozgrywka
 
 - Duży punkt (turkusowy) — to Ty.
-- Fioletowe echo — świeża kopia Twojej trasy sprzed chwili. Dotknięcie kończy grę.
-- Złote echo — dojrzałe echo, bezpieczne do zebrania, zanim zniknie.
+- Fioletowe echo — kopia Twojej trasy sprzed chwili. Dotknięcie kończy grę. Z czasem porusza się coraz szybciej, aż w końcu zniknie.
 - Żółta iskra — zbieraj po drodze dla dodatkowych punktów.
 
 ## Rozwój lokalny
