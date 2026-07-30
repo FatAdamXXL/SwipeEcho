@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>ECHO — SwipeEcho</title>
+<meta name="description" content="ECHO — unikaj świeżych ech swojej przeszłości i zbieraj dojrzałe, zanim znikną.">
+<meta name="theme-color" content="#0a0e1a">
+
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-512.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ECHO">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e1a;
+    --player:#5eead4;
+    --player-glow: rgba(94,234,212,0.55);
+    --echo:#a78bfa;
+    --echo-glow: rgba(167,139,250,0.6);
+    --treasure:#fbbf24;
+    --treasure-glow: rgba(251,191,36,0.6);
+    --text:#dbe4f0;
+    --muted:#5b6478;
+    --danger:#fb7185;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:var(--bg);
+    font-family:'JetBrains Mono', ui-monospace, monospace;
+    color:var(--text);
+    touch-action:none;
+    user-select:none;
+  }
+  #game{ display:block; width:100vw; height:100vh; touch-action:none; }
+  .hud{
+    position:fixed; top:0; left:0; right:0;
+    display:flex; justify-content:space-between;
+    padding:16px 20px;
+    padding-top:max(16px, env(safe-area-inset-top));
+    pointer-events:none;
+    font-size:13px;
+    letter-spacing:0.08em;
+    color:var(--muted);
+    z-index:5;
+  }
+  .hud b{ color:var(--text); font-weight:600; }
+  .hud .score b{ color:var(--treasure); }
+  .overlay{
+    position:fixed; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center;
+    background:rgba(10,14,26,0.85);
+    backdrop-filter: blur(6px);
+    z-index:10;
+    padding:24px;
+    overflow-y:auto;
+  }
+  .overlay.hidden{ display:none; }
+  .title{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:clamp(44px, 13vw, 80px);
+    letter-spacing:0.06em;
+    color:var(--player);
+    text-shadow: 0 0 24px var(--player-glow), 0 0 60px var(--player-glow);
+    margin:0 0 6px 0;
+  }
+  .subtitle{
+    font-size:12.5px;
+    letter-spacing:0.14em;
+    color:var(--echo);
+    text-transform:uppercase;
+    margin-bottom:24px;
+  }
+  .legend{
+    display:flex; flex-direction:column; gap:10px;
+    max-width:340px;
+    margin-bottom:26px;
+    text-align:left;
+  }
+  .legend-row{ display:flex; align-items:center; gap:12px; }
+  .dot{ width:14px; height:14px; border-radius:50%; flex-shrink:0; }
+  .dot.player{ background:var(--player); box-shadow:0 0 10px var(--player-glow); }
+  .dot.danger{ background:var(--echo); box-shadow:0 0 10px var(--echo-glow); }
+  .dot.treasure{ background:var(--treasure); box-shadow:0 0 10px var(--treasure-glow); }
+  .legend-text{ font-size:12.5px; line-height:1.5; color:var(--muted); }
+  .legend-text b{ color:var(--text); }
+  .btn{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    padding:14px 34px;
+    border-radius:100px;
+    border:1.5px solid var(--player);
+    color:var(--player);
+    background:transparent;
+    cursor:pointer;
+    transition: box-shadow .25s ease, transform .15s ease, background .25s ease;
+  }
+  .btn:active{ transform:scale(0.96); }
+  .btn:hover{ background:rgba(94,234,212,0.08); box-shadow: 0 0 26px var(--player-glow); }
+  .go-score{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:52px; font-weight:700;
+    color:var(--treasure);
+    text-shadow:0 0 30px var(--treasure-glow);
+    margin: 6px 0 2px 0;
+  }
+  .go-best{ font-size:12px; letter-spacing:0.1em; color:var(--muted); margin-bottom:26px; }
+  .go-label{ font-size:12px; letter-spacing:0.2em; text-transform:uppercase; color:var(--danger); margin-bottom:10px; }
+  .floater{
+    position:fixed; pointer-events:none; z-index:6;
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:16px;
+    color:var(--treasure); text-shadow:0 0 12px var(--treasure-glow);
+    animation: floatUp 0.9s ease-out forwards;
+  }
+  @keyframes floatUp{
+    0%{ opacity:1; transform:translateY(0); }
+    100%{ opacity:0; transform:translateY(-38px); }
+  }
+  @media (prefers-reduced-motion: reduce){ .btn{ transition:none; } .floater{ animation:none; opacity:0; } }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="score">WYNIK <b id="hudScore">0</b></div>
+  <div class="echoes">ZAGROŻENIA <b id="hudEchoes">0</b></div>
+</div>
+
+<div class="overlay" id="startScreen">
+  <div class="title">ECHO</div>
+  <div class="subtitle">twoja przeszłość dojrzewa</div>
+  <div class="legend">
+    <div class="legend-row">
+      <div class="dot player"></div>
+      <div class="legend-text">Ty. Steruj <b>palcem lub kursorem</b>.</div>
+    </div>
+    <div class="legend-row">
+      <div class="dot danger"></div>
+      <div class="legend-text"><b>Świeże echo</b> — powtarza Twoją trasę sprzed chwili. Dotknięcie = koniec gry.</div>
+    </div>
+    <div class="legend-row">
+      <div class="dot treasure"></div>
+      <div class="legend-text"><b>Dojrzałe echo</b> — po kilku sekundach niebezpieczeństwo mija i zamienia się w skarb. Zbierz je, zanim zniknie na zawsze.</div>
+    </div>
+  </div>
+  <button class="btn" id="startBtn">Zacznij</button>
+</div>
+
+<div class="overlay hidden" id="gameOverScreen">
+  <div class="go-label">pochłonięty przez własne echo</div>
+  <div class="go-score" id="finalScore">0</div>
+  <div class="go-best" id="bestScoreLine">rekord: 0</div>
+  <button class="btn" id="retryBtn">Jeszcze raz</button>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const hudScore = document.getElementById('hudScore');
+  const hudEchoes = document.getElementById('hudEchoes');
+  const startScreen = document.getElementById('startScreen');
+  const gameOverScreen = document.getElementById('gameOverScreen');
+  const finalScoreEl = document.getElementById('finalScore');
+  const bestScoreLine = document.getElementById('bestScoreLine');
+
+  let W, H, DPR;
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---- persistence (personal best) ----
+  const BEST_KEY = 'echo-best-score';
+  let bestScore = 0;
+  function loadBest(){
+    try{
+      const v = window.localStorage.getItem(BEST_KEY);
+      if(v) bestScore = parseInt(v) || 0;
+    }catch(e){}
+  }
+  function saveBest(v){
+    try{ window.localStorage.setItem(BEST_KEY, String(v)); }catch(e){}
+  }
+  loadBest();
+
+  // ---- input ----
+  let pointer = null;
+  function setPointer(clientX, clientY){ pointer = { x: clientX, y: clientY }; }
+  canvas.addEventListener('mousemove', e => setPointer(e.clientX, e.clientY));
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); const t=e.touches[0]; if(t) setPointer(t.clientX,t.clientY); }, {passive:false});
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); const t=e.touches[0]; if(t) setPointer(t.clientX,t.clientY); }, {passive:false});
+
+  // ---- tuning ----
+  const PLAYER_R = 9;
+  const ECHO_R = 8;
+  const SPARK_R = 7;
+  const RECORD_INTERVAL = 4.6;   // seconds between new echoes being born
+  const DANGER_DURATION = 7.0;   // seconds an echo is lethal
+  const TREASURE_DURATION = 5.0; // seconds an echo is harvestable before vanishing
+  const RECORD_STEP = 1000/45;
+  const HARVEST_BONUS = 5;
+
+  let state = 'idle';
+  let player, echoes, recording, recTimer, sparkPos, score, elapsed, lastTime, sampleAcc;
+  let floaters = [];
+
+  function resetGame(){
+    player = { x: W/2, y: H/2 };
+    if(!pointer) pointer = { x: W/2, y: H/2 };
+    echoes = [];
+    recording = [];
+    recTimer = 0;
+    score = 0;
+    elapsed = 0;
+    sampleAcc = 0;
+    sparkPos = randomSpark();
+    floaters.forEach(f => f.el.remove());
+    floaters = [];
+    updateHud();
+  }
+
+  function randomSpark(){
+    const pad = 60;
+    return { x: pad + Math.random()*(W-pad*2), y: pad + Math.random()*(H-pad*2) };
+  }
+
+  function updateHud(){
+    hudScore.textContent = score;
+    const dangerCount = echoes.filter(e => phaseOf(e) === 'danger').length;
+    hudEchoes.textContent = dangerCount;
+  }
+
+  function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.sqrt(dx*dx+dy*dy); }
+
+  function phaseOf(e){
+    const age = elapsed - e.bornAt;
+    if(age < DANGER_DURATION) return 'danger';
+    if(age < DANGER_DURATION + TREASURE_DURATION) return 'treasure';
+    return 'expired';
+  }
+
+  function spawnFloater(x, y, text){
+    const el = document.createElement('div');
+    el.className = 'floater';
+    el.textContent = text;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 950);
+  }
+
+  function startGame(){
+    resetGame();
+    state = 'playing';
+    startScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
+
+  function endGame(){
+    state = 'dead';
+    finalScoreEl.textContent = score;
+    if(score > bestScore){ bestScore = score; saveBest(bestScore); }
+    bestScoreLine.textContent = 'rekord: ' + bestScore;
+    gameOverScreen.classList.remove('hidden');
+  }
+
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('retryBtn').addEventListener('click', startGame);
+
+  function update(dt){
+    const follow = 1 - Math.pow(0.0025, dt);
+    player.x += (pointer.x - player.x) * follow;
+    player.y += (pointer.y - player.y) * follow;
+    player.x = Math.max(PLAYER_R, Math.min(W-PLAYER_R, player.x));
+    player.y = Math.max(PLAYER_R, Math.min(H-PLAYER_R, player.y));
+
+    sampleAcc += dt*1000;
+    while(sampleAcc >= RECORD_STEP){
+      recording.push({x:player.x, y:player.y});
+      sampleAcc -= RECORD_STEP;
+    }
+
+    recTimer += dt;
+    elapsed += dt;
+
+    if(recTimer >= RECORD_INTERVAL && recording.length > 4){
+      echoes.push({ path: recording, idx: 0, bornAt: elapsed });
+      recording = [];
+      recTimer = 0;
+    }
+
+    // advance echoes, handle phase transitions, collisions, expiry
+    for(let i = echoes.length - 1; i >= 0; i--){
+      const e = echoes[i];
+      const phase = phaseOf(e);
+      if(phase === 'expired'){
+        echoes.splice(i,1);
+        continue;
+      }
+      e.idx = (e.idx + 1) % e.path.length;
+      const p = e.path[e.idx];
+      const touching = dist(player, p) < PLAYER_R + ECHO_R - 2;
+
+      if(phase === 'danger' && touching){
+        endGame();
+        return;
+      }
+      if(phase === 'treasure' && touching){
+        score += HARVEST_BONUS;
+        spawnFloater(p.x, p.y, '+' + HARVEST_BONUS);
+        echoes.splice(i,1);
+      }
+    }
+
+    if(dist(player, sparkPos) < PLAYER_R + SPARK_R){
+      score += 1;
+      sparkPos = randomSpark();
+    }
+
+    updateHud();
+  }
+
+  function glowDot(x, y, r, color, glowColor, glowSize){
+    ctx.save();
+    ctx.shadowColor = glowColor;
+    ctx.shadowBlur = glowSize;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function render(){
+    ctx.fillStyle = 'rgba(10,14,26,0.22)';
+    ctx.fillRect(0,0,W,H);
+
+    const pulse = 1 + Math.sin(performance.now()/220)*0.12;
+    glowDot(sparkPos.x, sparkPos.y, SPARK_R*pulse, '#fbbf24', 'rgba(251,191,36,0.65)', 16);
+
+    for(const e of echoes){
+      const p = e.path[e.idx];
+      const age = elapsed - e.bornAt;
+      if(age < DANGER_DURATION){
+        // danger phase — warn in the final 1.5s by pulsing brighter/larger
+        const timeLeft = DANGER_DURATION - age;
+        let r = ECHO_R, glow = 14;
+        if(timeLeft < 1.5){
+          const flick = 1 + Math.sin(performance.now()/70)*0.25;
+          r = ECHO_R * flick;
+          glow = 22;
+        }
+        glowDot(p.x, p.y, r, '#a78bfa', 'rgba(167,139,250,0.65)', glow);
+      } else {
+        // treasure phase — golden, shrinking urgency as it nears expiry
+        const treasureAge = age - DANGER_DURATION;
+        const remaining = 1 - (treasureAge / TREASURE_DURATION);
+        const sparkle = 1 + Math.sin(performance.now()/130 + p.x)*0.18;
+        ctx.save();
+        ctx.globalAlpha = 0.55 + remaining*0.45;
+        glowDot(p.x, p.y, ECHO_R*0.85*sparkle, '#fbbf24', 'rgba(251,191,36,0.7)', 18);
+        ctx.restore();
+      }
+    }
+
+    glowDot(player.x, player.y, PLAYER_R, '#5eead4', 'rgba(94,234,212,0.7)', 20);
+  }
+
+  function loop(now){
+    if(state !== 'playing') return;
+    const dt = Math.min((now - lastTime)/1000, 0.05);
+    lastTime = now;
+    update(dt);
+    if(state === 'playing'){
+      render();
+      requestAnimationFrame(loop);
+    }
+  }
+
+  function idleRender(){
+    ctx.fillStyle = 'rgba(10,14,26,0.3)';
+    ctx.fillRect(0,0,W,H);
+    if(state !== 'playing') requestAnimationFrame(idleRender);
+  }
+  idleRender();
+})();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
