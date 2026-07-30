@@ -9,7 +9,7 @@ Gra działa jako PWA — można ją zainstalować na telefonie lub pulpicie i gr
 ## Rozgrywka
 
 - Duży punkt (turkusowy) — to Ty.
-- Fioletowe echo — kopia Twojej trasy sprzed chwili. Dotknięcie kończy grę. Z czasem porusza się coraz szybciej, aż w końcu zniknie.
+- Fioletowe echo — kopia Twojej trasy sprzed chwili. Dotknięcie kończy grę. Nowe echa pojawiają się bez końca (bez ograniczenia liczby) i z czasem poruszają się coraz szybciej.
 - Żółta iskra — zbieraj po drodze dla dodatkowych punktów.
 
 ## Rozwój lokalny

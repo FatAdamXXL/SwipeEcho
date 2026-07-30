@@ -141,7 +141,7 @@
     </div>
     <div class="legend-row">
       <div class="dot danger"></div>
-      <div class="legend-text"><b>Echo</b> — powtarza Twoją trasę sprzed chwili. Dotknięcie = koniec gry. Z czasem rusza się coraz szybciej, aż zniknie.</div>
+      <div class="legend-text"><b>Echo</b> — powtarza Twoją trasę sprzed chwili. Dotknięcie = koniec gry. Nowe echa pojawiają się bez końca i z czasem rusza się coraz szybciej.</div>
     </div>
   </div>
   <button class="btn" id="startBtn">Zacznij</button>
@@ -201,8 +201,7 @@
   const PLAYER_R = 9;
   const ECHO_R = 8;
   const SPARK_R = 7;
-  const RECORD_INTERVAL = 4.6;    // seconds between new echoes being born
-  const DANGER_DURATION = 12.0;   // seconds an echo is lethal before it fades away
+  const RECORD_INTERVAL = 4.6;    // seconds between new echoes being born — spawning never stops
   const RECORD_STEP = 1000/45;
   const SAMPLE_RATE = 1000/RECORD_STEP; // samples/sec an echo's path was recorded at
 
@@ -282,21 +281,17 @@
     elapsed += dt;
 
     if(recTimer >= RECORD_INTERVAL && recording.length > 4){
-      echoes.push({ path: recording, idx: 0, posAcc: 0, bornAt: elapsed });
+      echoes.push({ path: recording, idx: 0, posAcc: 0 });
       recording = [];
       recTimer = 0;
     }
 
     const speed = echoSpeedMultiplier();
 
-    // advance echoes, handle collisions and expiry
-    for(let i = echoes.length - 1; i >= 0; i--){
+    // advance every echo ever recorded and check collisions — none of them expire,
+    // so the field only ever gets more crowded the longer you survive.
+    for(let i = 0; i < echoes.length; i++){
       const e = echoes[i];
-      const age = elapsed - e.bornAt;
-      if(age >= DANGER_DURATION){
-        echoes.splice(i,1);
-        continue;
-      }
 
       e.posAcc += dt * SAMPLE_RATE * speed;
       while(e.posAcc >= 1){
@@ -340,16 +335,7 @@
 
     for(const e of echoes){
       const p = e.path[e.idx];
-      const age = elapsed - e.bornAt;
-      // warn in the final 1.5s before an echo fades away by pulsing brighter/larger
-      const timeLeft = DANGER_DURATION - age;
-      let r = ECHO_R, glow = 14;
-      if(timeLeft < 1.5){
-        const flick = 1 + Math.sin(performance.now()/70)*0.25;
-        r = ECHO_R * flick;
-        glow = 22;
-      }
-      glowDot(p.x, p.y, r, '#a78bfa', 'rgba(167,139,250,0.65)', glow);
+      glowDot(p.x, p.y, ECHO_R, '#a78bfa', 'rgba(167,139,250,0.65)', 14);
     }
 
     glowDot(player.x, player.y, PLAYER_R, '#5eead4', 'rgba(94,234,212,0.7)', 20);
