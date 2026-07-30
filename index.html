@@ -174,7 +174,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.005.003";
+const APP_VERSION = "0.005.004";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -301,6 +301,11 @@ const APP_VERSION = "0.005.003";
 
   function startGame(){
     resetGame();
+    // hard-clear the canvas so a new run never starts on top of the previous
+    // run's leftover trail — render() only ever paints a translucent overlay,
+    // it never wipes the board on its own.
+    ctx.fillStyle = '#0a0e1a';
+    ctx.fillRect(0, 0, W, H);
     state = 'playing';
     startScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
