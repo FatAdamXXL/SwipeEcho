@@ -72,14 +72,7 @@
     letter-spacing:0.02em;
     color:var(--player);
     text-shadow: 0 0 24px var(--player-glow), 0 0 60px var(--player-glow);
-    margin:0 0 6px 0;
-  }
-  .subtitle{
-    font-size:12.5px;
-    letter-spacing:0.14em;
-    color:var(--echo);
-    text-transform:uppercase;
-    margin-bottom:24px;
+    margin:0 0 26px 0;
   }
   .legend{
     display:flex; flex-direction:column; gap:10px;
@@ -144,7 +137,6 @@
 
 <div class="overlay" id="startScreen">
   <div class="title">SwipeEcho</div>
-  <div class="subtitle">uciekaj przed własną przeszłością</div>
   <div class="legend">
     <div class="legend-row">
       <div class="dot player"></div>
@@ -161,7 +153,7 @@
 </div>
 
 <div class="overlay hidden" id="gameOverScreen">
-  <div class="go-label">pochłonięty przez własne echo</div>
+  <div class="go-label">przegrałeś</div>
   <div class="go-score" id="finalScore">0</div>
   <div class="go-best" id="bestScoreLine">rekord: 0</div>
   <button class="btn" id="retryBtn">Jeszcze raz</button>
@@ -171,7 +163,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.005.000";
+const APP_VERSION = "0.005.001";
 
 (() => {
   const canvas = document.getElementById('game');
