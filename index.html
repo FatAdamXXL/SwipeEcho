@@ -74,6 +74,17 @@
     text-shadow: 0 0 24px var(--player-glow), 0 0 60px var(--player-glow);
     margin:0 0 26px 0;
   }
+  .dev-tag{
+    display:inline-block;
+    font-family:'JetBrains Mono', ui-monospace, monospace;
+    font-size:0.26em;
+    font-weight:600;
+    letter-spacing:0.12em;
+    vertical-align:super;
+    color:var(--danger);
+    text-shadow:none;
+    margin-left:0.18em;
+  }
   .legend{
     display:flex; flex-direction:column; gap:10px;
     max-width:340px;
@@ -136,7 +147,7 @@
 </div>
 
 <div class="overlay" id="startScreen">
-  <div class="title">SwipeEcho</div>
+  <div class="title">SwipeEcho<span class="dev-tag">DEV</span></div>
   <div class="legend">
     <div class="legend-row">
       <div class="dot player"></div>
@@ -163,7 +174,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.005.002";
+const APP_VERSION = "0.005.003";
 
 (() => {
   const canvas = document.getElementById('game');
