@@ -171,7 +171,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.004.000";
+const APP_VERSION = "0.005.000";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -245,7 +245,9 @@ const APP_VERSION = "0.004.000";
   const SPARK_R = 7;
   const RECORD_INTERVAL = 4.6;    // seconds between new echoes being born — spawning never stops
   const RECORD_STEP = 1000/45;
-  const SAMPLE_RATE = 1000/RECORD_STEP; // samples/sec an echo's path was recorded at
+  const SAMPLE_RATE = 1000/RECORD_STEP; // samples/sec the trail is recorded at
+  const TRAIL_DURATION = 15.0;    // seconds of player movement each echo remembers
+  const MAX_TRAIL_SAMPLES = Math.round(TRAIL_DURATION * SAMPLE_RATE);
 
   // echo playback speed ramps up over the course of a run, with no ceiling: very slow,
   // forgiving start, relentlessly faster the longer you survive.
@@ -253,19 +255,29 @@ const APP_VERSION = "0.004.000";
   const ECHO_SPEED_ACCEL = 0.01; // added to the multiplier per second, unbounded
 
   let state = 'idle';
-  let player, echoes, recording, recTimer, sparkPos, score, elapsed, lastTime, sampleAcc;
+  let player, echoes, trail, recTimer, sparkPos, score, elapsed, lastTime, sampleAcc;
 
   function resetGame(){
     player = { x: W/2, y: H/2 };
     if(!pointer) pointer = { x: W/2, y: H/2 };
     echoes = [];
-    recording = [];
+    trail = [];
     recTimer = 0;
     score = 0;
     elapsed = 0;
     sampleAcc = 0;
     sparkPos = randomSpark();
     updateHud();
+  }
+
+  // bounces a continuously-growing position back and forth across [0, len-1]
+  // instead of wrapping it, so playback reverses smoothly with no jump-cut.
+  function pingpongPos(x, len){
+    if(len <= 1) return 0;
+    const period = 2 * (len - 1);
+    let t = x % period;
+    if(t < 0) t += period;
+    return t <= (len - 1) ? t : period - t;
   }
 
   function randomSpark(){
@@ -313,34 +325,37 @@ const APP_VERSION = "0.004.000";
 
     sampleAcc += dt*1000;
     while(sampleAcc >= RECORD_STEP){
-      recording.push({x:player.x, y:player.y});
+      trail.push({x:player.x, y:player.y});
+      if(trail.length > MAX_TRAIL_SAMPLES) trail.shift();
       sampleAcc -= RECORD_STEP;
     }
 
     recTimer += dt;
     elapsed += dt;
 
-    if(recTimer >= RECORD_INTERVAL && recording.length > 4){
-      echoes.push({ path: recording, posAcc: 0, x: recording[0].x, y: recording[0].y });
-      recording = [];
+    if(recTimer >= RECORD_INTERVAL && trail.length > 4){
+      const path = trail.slice();
+      echoes.push({ path, posAcc: 0, x: path[0].x, y: path[0].y });
       recTimer = 0;
     }
 
     const speed = echoSpeedMultiplier();
 
     // advance every echo ever recorded and check collisions — none of them expire,
-    // so the field only ever gets more crowded the longer you survive. Position is
-    // interpolated between recorded samples so motion stays smooth at any speed,
-    // instead of snapping between the ~45 samples/sec the path was recorded at.
+    // so the field only ever gets more crowded the longer you survive. Each echo
+    // bounces back and forth along its own (up to TRAIL_DURATION-long) trail instead
+    // of jumping back to the start, and position is interpolated between recorded
+    // samples so motion stays smooth at any speed.
     for(let i = 0; i < echoes.length; i++){
       const e = echoes[i];
       const len = e.path.length;
 
       e.posAcc += dt * SAMPLE_RATE * speed;
-      const base = Math.floor(e.posAcc);
-      const frac = e.posAcc - base;
-      const a = e.path[base % len];
-      const b = e.path[(base + 1) % len];
+      const pos = pingpongPos(e.posAcc, len);
+      const base = Math.floor(pos);
+      const frac = pos - base;
+      const a = e.path[base];
+      const b = e.path[Math.min(base + 1, len - 1)];
       e.x = a.x + (b.x - a.x) * frac;
       e.y = a.y + (b.y - a.y) * frac;
 
