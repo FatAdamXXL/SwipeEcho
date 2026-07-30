@@ -119,6 +119,7 @@
   }
   .go-best{ font-size:12px; letter-spacing:0.1em; color:var(--muted); margin-bottom:26px; }
   .go-label{ font-size:12px; letter-spacing:0.2em; text-transform:uppercase; color:var(--danger); margin-bottom:10px; }
+  .version-badge{ margin-top:20px; font-size:11px; letter-spacing:0.08em; color:var(--muted); opacity:0.6; }
   @media (prefers-reduced-motion: reduce){ .btn{ transition:none; } }
 </style>
 </head>
@@ -145,6 +146,7 @@
     </div>
   </div>
   <button class="btn" id="startBtn">Zacznij</button>
+  <div class="version-badge" id="versionBadge"></div>
 </div>
 
 <div class="overlay hidden" id="gameOverScreen">
@@ -155,6 +157,11 @@
 </div>
 
 <script>
+/* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
+   Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
+   nowych funkcjach/kamieniach milowych. */
+const APP_VERSION = "0.003.001";
+
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -164,6 +171,8 @@
   const gameOverScreen = document.getElementById('gameOverScreen');
   const finalScoreEl = document.getElementById('finalScore');
   const bestScoreLine = document.getElementById('bestScoreLine');
+
+  document.getElementById('versionBadge').textContent = 'v' + APP_VERSION;
 
   let W, H, DPR;
   function resize(){
