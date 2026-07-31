@@ -124,6 +124,23 @@
   .go-best{ font-size:12px; letter-spacing:0.1em; color:var(--muted); margin-bottom:26px; }
   .go-label{ font-size:12px; letter-spacing:0.2em; text-transform:uppercase; color:var(--danger); margin-bottom:10px; }
   .version-badge{ margin-top:20px; font-size:11px; letter-spacing:0.08em; color:var(--muted); opacity:0.6; }
+  .mute-btn{
+    margin-top:16px;
+    width:38px; height:38px;
+    border-radius:50%;
+    border:1.5px solid var(--muted);
+    background:transparent;
+    color:var(--muted);
+    font-size:16px;
+    line-height:1;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    transition: border-color .2s ease, color .2s ease, transform .15s ease;
+  }
+  .mute-btn:hover{ border-color:var(--player); color:var(--player); }
+  .mute-btn:active{ transform:scale(0.92); }
   .btn-muted{
     border-color:var(--muted);
     color:var(--muted);
@@ -241,6 +258,7 @@
   <button class="btn" id="startBtn">Zacznij</button>
   <button class="btn btn-secondary visible" id="rankingBtn">Ranking</button>
   <button class="btn btn-secondary" id="installBtn">Zainstaluj</button>
+  <button class="mute-btn" id="muteBtn" aria-label="Wycisz muzykę menu">🔊</button>
   <div class="version-badge" id="versionBadge"></div>
   <button class="btn btn-secondary btn-muted" id="exitAppBtn">Wyjdź</button>
 </div>
@@ -270,7 +288,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.009.001";
+const APP_VERSION = "0.009.002";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -482,6 +500,28 @@ const APP_VERSION = "0.009.001";
   menuMusic.loop = true;
   menuMusic.volume = 0.5;
 
+  // menu mute only affects the menu theme — never the in-run main theme or sfx
+  const MUTE_KEY = 'echo-menu-muted';
+  const muteBtn = document.getElementById('muteBtn');
+  function loadMenuMuted(){
+    try{ return window.localStorage.getItem(MUTE_KEY) === '1'; }catch(e){ return false; }
+  }
+  function saveMenuMuted(v){
+    try{ window.localStorage.setItem(MUTE_KEY, v ? '1' : '0'); }catch(e){}
+  }
+  let menuMuted = loadMenuMuted();
+  function applyMenuMuted(){
+    menuMusic.muted = menuMuted;
+    muteBtn.textContent = menuMuted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-label', menuMuted ? 'Włącz muzykę menu' : 'Wycisz muzykę menu');
+  }
+  applyMenuMuted();
+  muteBtn.addEventListener('click', () => {
+    menuMuted = !menuMuted;
+    saveMenuMuted(menuMuted);
+    applyMenuMuted();
+  });
+
   // Native <audio> looping isn't gapless with MP3 (the LAME encoder pads the file
   // with a few silent samples, which native loop plays back as an audible click/gap
   // at the seam). The main theme needs a hard zero-gap loop, so it's decoded once
@@ -505,6 +545,32 @@ const APP_VERSION = "0.009.001";
     return mainThemeBufferPromise;
   }
   loadMainTheme().catch(() => {}); // decode ahead of time so playback starts instantly
+
+  // synthesized coin-pickup blip — no audio file, just an oscillator + a fast
+  // volume envelope so it doesn't click on start/stop. Two quick notes, low then
+  // high, like a classic arcade coin sound.
+  function playCoinSound(){
+    try{
+      const ctx = getAudioCtx();
+      if(ctx.state === 'suspended') ctx.resume();
+      const now = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      osc.type = 'square';
+      const gain = ctx.createGain();
+      osc.connect(gain).connect(ctx.destination);
+
+      osc.frequency.setValueAtTime(988, now);         // B5
+      osc.frequency.setValueAtTime(1568, now + 0.06);  // G6
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.25, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+      osc.start(now);
+      osc.stop(now + 0.2);
+    }catch(e){}
+  }
 
   function stopMainMusic(){
     if(mainThemeSource){
@@ -733,6 +799,7 @@ const APP_VERSION = "0.009.001";
 
     if(dist(player, sparkPos) < PLAYER_R + SPARK_R){
       score += 1;
+      playCoinSound();
       sparkPos = randomSpark();
     }
 
