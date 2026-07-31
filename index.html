@@ -288,7 +288,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.009.002";
+const APP_VERSION = "0.009.003";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -556,15 +556,15 @@ const APP_VERSION = "0.009.002";
       const now = ctx.currentTime;
 
       const osc = ctx.createOscillator();
-      osc.type = 'square';
+      osc.type = 'triangle'; // rounder, bassier than square's buzzy harmonics
       const gain = ctx.createGain();
       osc.connect(gain).connect(ctx.destination);
 
-      osc.frequency.setValueAtTime(988, now);         // B5
-      osc.frequency.setValueAtTime(1568, now + 0.06);  // G6
+      osc.frequency.setValueAtTime(494, now);         // B4 — down an octave
+      osc.frequency.setValueAtTime(784, now + 0.06);  // G5 — down an octave
 
       gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.25, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.175, now + 0.01); // 30% quieter (was 0.25)
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
 
       osc.start(now);
