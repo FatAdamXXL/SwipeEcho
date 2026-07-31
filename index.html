@@ -256,6 +256,7 @@
     <div class="score-entry-status" id="scoreEntryStatus"></div>
   </div>
   <button class="btn" id="retryBtn">Jeszcze raz</button>
+  <button class="btn btn-secondary visible" id="menuBtn">Menu</button>
   <button class="btn btn-secondary visible" id="rankingBtnGameOver">Ranking</button>
 </div>
 
@@ -269,7 +270,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.009.000";
+const APP_VERSION = "0.009.001";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -656,19 +657,23 @@ const APP_VERSION = "0.009.000";
     offerScoreEntry(score);
   }
 
-  function quitToMenu(){
-    if(state !== 'playing') return;
+  function backToMenu(){
     state = 'idle';
     exitBtn.classList.remove('visible');
     playMenuMusic();
-    // same hard-clear as starting a new run — don't leave the frantic mid-run
-    // canvas frozen behind the (blurred, semi-transparent) start screen.
+    // same hard-clear as starting a new run — don't leave a frozen mid-game or
+    // game-over frame behind the (blurred, semi-transparent) start screen.
     ctx.fillStyle = '#0a0e1a';
     ctx.fillRect(0, 0, W, H);
     gameOverScreen.classList.add('hidden');
     startScreen.classList.remove('hidden');
   }
+  function quitToMenu(){
+    if(state !== 'playing') return;
+    backToMenu();
+  }
   exitBtn.addEventListener('click', quitToMenu);
+  document.getElementById('menuBtn').addEventListener('click', backToMenu);
 
   document.getElementById('startBtn').addEventListener('click', startGame);
   document.getElementById('retryBtn').addEventListener('click', startGame);
