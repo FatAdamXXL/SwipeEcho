@@ -258,7 +258,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.007.003";
+const APP_VERSION = "0.007.004";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -692,6 +692,14 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });
 }
+</script>
+
+<!-- Vercel Web Analytics — no build step here, so inject() is loaded straight from a
+     CDN (same pattern as the Supabase client below) instead of via npm/@vercel/analytics.
+     inject() only sends data when actually running on Vercel; it's a no-op elsewhere
+     (localhost, GitHub Pages), and fails silently if the import itself can't load. -->
+<script type="module">
+  import('https://esm.sh/@vercel/analytics').then(({ inject }) => inject()).catch(() => {});
 </script>
 </body>
 </html>
