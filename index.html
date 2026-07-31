@@ -263,7 +263,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.007.000";
+const APP_VERSION = "0.007.001";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -409,10 +409,19 @@ const APP_VERSION = "0.007.000";
   const scoreEntryStatus = document.getElementById('scoreEntryStatus');
   let pendingScore = 0;
 
+  // ---- remember the last nickname used, so it doesn't have to be retyped every run ----
+  const NICKNAME_KEY = 'echo-nickname';
+  function loadNickname(){
+    try{ return window.localStorage.getItem(NICKNAME_KEY) || ''; }catch(e){ return ''; }
+  }
+  function saveNickname(v){
+    try{ window.localStorage.setItem(NICKNAME_KEY, v); }catch(e){}
+  }
+
   async function offerScoreEntry(finalScoreValue){
     pendingScore = finalScoreValue;
     scoreEntry.classList.remove('visible');
-    nicknameInput.value = '';
+    nicknameInput.value = loadNickname();
     nicknameInput.disabled = false;
     submitScoreBtn.disabled = false;
     scoreEntryStatus.textContent = '';
@@ -430,6 +439,7 @@ const APP_VERSION = "0.007.000";
     scoreEntryStatus.textContent = 'Zapisywanie…';
     try{
       await submitScore(nickname, pendingScore);
+      saveNickname(nickname);
       scoreEntryStatus.textContent = 'Zapisano!';
     }catch(e){
       scoreEntryStatus.textContent = 'Nie udało się zapisać, spróbuj ponownie.';
