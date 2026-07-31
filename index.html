@@ -235,7 +235,7 @@
     </div>
     <div class="legend-row">
       <div class="dot danger"></div>
-      <div class="legend-text"><b>Echo</b> — powtarza Twoją trasę sprzed chwili. Dotknięcie = koniec gry. Nowe echa pojawiają się bez końca i z czasem rusza się coraz szybciej.</div>
+      <div class="legend-text"><b>Echo</b> — powtarza Twoją trasę sprzed chwili. Dotknięcie = koniec gry. Świeże echo przez 2 sekundy miga i przenika przez Ciebie. Nowe echa pojawiają się bez końca i z czasem rusza się coraz szybciej.</div>
     </div>
   </div>
   <button class="btn" id="startBtn">Zacznij</button>
@@ -269,7 +269,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.007.003";
+const APP_VERSION = "0.008.000";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -512,6 +512,10 @@ const APP_VERSION = "0.007.003";
   const ECHO_SPEED_START = 0.25;
   const ECHO_SPEED_ACCEL = 0.01; // added to the multiplier per second, unbounded
 
+  // a freshly spawned echo is intangible and flickers for a couple seconds before
+  // it can actually kill you — gives a beat to notice and react to it.
+  const SPAWN_GRACE = 2.0;
+
   let state = 'idle';
   let player, echoes, trail, recTimer, sparkPos, score, elapsed, lastTime, sampleAcc;
 
@@ -614,7 +618,7 @@ const APP_VERSION = "0.007.003";
 
     if(recTimer >= RECORD_INTERVAL && trail.length > 4){
       const path = trail.slice();
-      echoes.push({ path, posAcc: 0, x: path[0].x, y: path[0].y });
+      echoes.push({ path, posAcc: 0, x: path[0].x, y: path[0].y, bornAt: elapsed });
       recTimer = 0;
     }
 
@@ -640,7 +644,9 @@ const APP_VERSION = "0.007.003";
 
       const touching = dist(player, e) < PLAYER_R + ECHO_R - 2;
 
-      if(touching){
+      // freshly spawned echoes are intangible for SPAWN_GRACE seconds — they
+      // flicker (see render()) but pass right through the player.
+      if(touching && elapsed - e.bornAt >= SPAWN_GRACE){
         endGame();
         return;
       }
@@ -673,7 +679,17 @@ const APP_VERSION = "0.007.003";
     glowDot(sparkPos.x, sparkPos.y, SPARK_R*pulse, '#fbbf24', 'rgba(251,191,36,0.65)', 16);
 
     for(const e of echoes){
-      glowDot(e.x, e.y, ECHO_R, '#a78bfa', 'rgba(167,139,250,0.65)', 14);
+      const age = elapsed - e.bornAt;
+      if(age < SPAWN_GRACE){
+        // fast flicker while intangible, telegraphing "can't hurt you yet"
+        const flicker = Math.sin(performance.now() / 55) > 0 ? 0.85 : 0.15;
+        ctx.save();
+        ctx.globalAlpha = flicker;
+        glowDot(e.x, e.y, ECHO_R, '#a78bfa', 'rgba(167,139,250,0.65)', 14);
+        ctx.restore();
+      } else {
+        glowDot(e.x, e.y, ECHO_R, '#a78bfa', 'rgba(167,139,250,0.65)', 14);
+      }
     }
 
     glowDot(player.x, player.y, PLAYER_R, '#5eead4', 'rgba(94,234,212,0.7)', 20);
