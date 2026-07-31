@@ -124,24 +124,11 @@
   .go-best{ font-size:12px; letter-spacing:0.1em; color:var(--muted); margin-bottom:26px; }
   .go-label{ font-size:12px; letter-spacing:0.2em; text-transform:uppercase; color:var(--danger); margin-bottom:10px; }
   .version-badge{ margin-top:20px; font-size:11px; letter-spacing:0.08em; color:var(--muted); opacity:0.6; }
-  .btn-quiet{
-    display:none;
-    margin-top:18px;
-    border:none;
-    background:none;
+  .btn-muted{
+    border-color:var(--muted);
     color:var(--muted);
-    font-family:'JetBrains Mono', ui-monospace, monospace;
-    font-size:12px;
-    letter-spacing:0.1em;
-    text-transform:uppercase;
-    padding:6px 10px;
-    cursor:pointer;
-    opacity:0.65;
-    transition: opacity .2s ease, color .2s ease;
   }
-  .btn-quiet.visible{ display:inline-block; }
-  .btn-quiet:hover{ opacity:1; color:var(--danger); }
-  .btn-quiet:active{ transform:scale(0.95); }
+  .btn-muted:hover{ background:rgba(219,228,240,0.06); box-shadow:none; }
   .btn-secondary{
     margin-top:14px;
     display:none;
@@ -255,7 +242,7 @@
   <button class="btn btn-secondary visible" id="rankingBtn">Ranking</button>
   <button class="btn btn-secondary" id="installBtn">Zainstaluj</button>
   <div class="version-badge" id="versionBadge"></div>
-  <button class="btn-quiet" id="exitAppBtn">Wyjdź</button>
+  <button class="btn btn-secondary btn-muted" id="exitAppBtn">Wyjdź</button>
 </div>
 
 <div class="overlay hidden" id="gameOverScreen">
@@ -282,7 +269,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.007.002";
+const APP_VERSION = "0.007.003";
 
 (() => {
   const canvas = document.getElementById('game');
