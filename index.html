@@ -269,7 +269,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.008.001";
+const APP_VERSION = "0.009.000";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -476,6 +476,77 @@ const APP_VERSION = "0.008.001";
   window.addEventListener('resize', resize);
   resize();
 
+  // ---- music: menu theme on the menus, main theme during a run ----
+  const menuMusic = new Audio('assets/audio/menu-theme.mp3');
+  menuMusic.loop = true;
+  menuMusic.volume = 0.5;
+
+  // Native <audio> looping isn't gapless with MP3 (the LAME encoder pads the file
+  // with a few silent samples, which native loop plays back as an audible click/gap
+  // at the seam). The main theme needs a hard zero-gap loop, so it's decoded once
+  // into a raw buffer and looped sample-accurately via the Web Audio API instead.
+  const MAIN_THEME_VOLUME = 0.5;
+  let audioCtx = null;
+  let mainThemeBufferPromise = null;
+  let mainThemeSource = null;
+
+  function getAudioCtx(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+  function loadMainTheme(){
+    if(!mainThemeBufferPromise){
+      const ctx = getAudioCtx();
+      mainThemeBufferPromise = fetch('assets/audio/main-theme.mp3')
+        .then(res => res.arrayBuffer())
+        .then(data => ctx.decodeAudioData(data));
+    }
+    return mainThemeBufferPromise;
+  }
+  loadMainTheme().catch(() => {}); // decode ahead of time so playback starts instantly
+
+  function stopMainMusic(){
+    if(mainThemeSource){
+      try{ mainThemeSource.stop(); }catch(e){}
+      mainThemeSource.disconnect();
+      mainThemeSource = null;
+    }
+  }
+
+  function playMenuMusic(){
+    stopMainMusic();
+    menuMusic.play().catch(() => {});
+  }
+  async function playMainMusic(){
+    menuMusic.pause();
+    stopMainMusic();
+    try{
+      const ctx = getAudioCtx();
+      if(ctx.state === 'suspended') await ctx.resume();
+      const buffer = await loadMainTheme();
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      const gain = ctx.createGain();
+      gain.gain.value = MAIN_THEME_VOLUME;
+      source.connect(gain).connect(ctx.destination);
+      source.start(0);
+      mainThemeSource = source;
+    }catch(e){}
+  }
+
+  // browsers block autoplay before any user interaction — try immediately (works
+  // once installed/re-launched with an interaction already "spent"), and again on
+  // the first tap/click/key anywhere as a guaranteed fallback.
+  playMenuMusic();
+  function retryMenuMusicOnce(){
+    if(state !== 'playing') playMenuMusic();
+    window.removeEventListener('pointerdown', retryMenuMusicOnce);
+    window.removeEventListener('keydown', retryMenuMusicOnce);
+  }
+  window.addEventListener('pointerdown', retryMenuMusicOnce);
+  window.addEventListener('keydown', retryMenuMusicOnce);
+
   // ---- persistence (personal best) ----
   const BEST_KEY = 'echo-best-score';
   let bestScore = 0;
@@ -569,6 +640,7 @@ const APP_VERSION = "0.008.001";
     startScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
     exitBtn.classList.add('visible');
+    playMainMusic();
     lastTime = performance.now();
     requestAnimationFrame(loop);
   }
@@ -576,6 +648,7 @@ const APP_VERSION = "0.008.001";
   function endGame(){
     state = 'dead';
     exitBtn.classList.remove('visible');
+    playMenuMusic();
     finalScoreEl.textContent = score;
     if(score > bestScore){ bestScore = score; saveBest(bestScore); }
     bestScoreLine.textContent = 'rekord: ' + bestScore;
@@ -587,6 +660,7 @@ const APP_VERSION = "0.008.001";
     if(state !== 'playing') return;
     state = 'idle';
     exitBtn.classList.remove('visible');
+    playMenuMusic();
     // same hard-clear as starting a new run — don't leave the frantic mid-run
     // canvas frozen behind the (blurred, semi-transparent) start screen.
     ctx.fillStyle = '#0a0e1a';

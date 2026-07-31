@@ -1,4 +1,4 @@
-const CACHE_NAME = "swipeecho-dev-v18";
+const CACHE_NAME = "swipeecho-dev-v19";
 
 const SHELL_URLS = [
   "./",
@@ -7,6 +7,13 @@ const SHELL_URLS = [
   "icons/icon-192.png",
   "icons/icon-512.png",
   "icons/icon-maskable-512.png",
+];
+
+// ~5.5MB across 2 files — cached in the background after activation, not blocking
+// install, so one slow/flaky download can't hold up the rest of the shell.
+const AUDIO_URLS = [
+  "assets/audio/menu-theme.mp3",
+  "assets/audio/main-theme.mp3",
 ];
 
 self.addEventListener("install", (event) => {
@@ -24,8 +31,24 @@ self.addEventListener("activate", (event) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(() => cacheAudioInBackground())
   );
 });
+
+function cacheAudioInBackground() {
+  return caches.open(CACHE_NAME).then((cache) =>
+    Promise.allSettled(
+      AUDIO_URLS.map((url) =>
+        cache.match(url).then((existing) => {
+          if (existing) return;
+          return fetch(url).then((response) => {
+            if (response.ok) return cache.put(url, response);
+          });
+        })
+      )
+    )
+  );
+}
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
