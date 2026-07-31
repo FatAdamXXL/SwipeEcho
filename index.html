@@ -126,14 +126,37 @@
   .version-badge{ margin-top:20px; font-size:11px; letter-spacing:0.08em; color:var(--muted); opacity:0.6; }
   .btn-secondary{
     margin-top:14px;
-    border-color:var(--muted);
-    color:var(--muted);
-    font-size:13px;
-    padding:11px 28px;
     display:none;
   }
-  .btn-secondary:hover{ background:rgba(219,228,240,0.06); box-shadow:none; }
   .btn-secondary.visible{ display:inline-block; }
+  @keyframes installPulse{
+    0%, 100%{ box-shadow: 0 0 0 rgba(94,234,212,0); }
+    50%{ box-shadow: 0 0 22px var(--player-glow); }
+  }
+  #installBtn.visible{ animation: installPulse 1.8s ease-in-out infinite; }
+  .exit-btn{
+    position:fixed;
+    top: max(14px, env(safe-area-inset-top));
+    left:50%;
+    transform:translateX(-50%);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    width:34px; height:34px;
+    border-radius:50%;
+    border:1.5px solid var(--muted);
+    background:rgba(10,14,26,0.4);
+    color:var(--muted);
+    font-family:'JetBrains Mono', ui-monospace, monospace;
+    font-size:16px;
+    line-height:1;
+    cursor:pointer;
+    z-index:6;
+    transition: border-color .2s ease, color .2s ease, transform .15s ease;
+  }
+  .exit-btn.visible{ display:flex; }
+  .exit-btn:hover{ border-color:var(--danger); color:var(--danger); }
+  .exit-btn:active{ transform:translateX(-50%) scale(0.9); }
   .lb-heading{
     font-family:'Space Grotesk', sans-serif;
     font-weight:700;
@@ -180,7 +203,11 @@
   }
   .nickname-input:focus{ box-shadow:0 0 16px var(--player-glow); }
   .score-entry-status{ font-size:12px; color:var(--player); letter-spacing:0.1em; min-height:14px; }
-  @media (prefers-reduced-motion: reduce){ .btn{ transition:none; } }
+  @media (prefers-reduced-motion: reduce){
+    .btn{ transition:none; }
+    #installBtn.visible{ animation:none; }
+    .exit-btn{ transition:none; }
+  }
 </style>
 </head>
 <body>
@@ -191,6 +218,8 @@
   <div class="score">WYNIK <b id="hudScore">0</b></div>
   <div class="echoes">ZAGROŻENIA <b id="hudEchoes">0</b></div>
 </div>
+
+<button class="exit-btn" id="exitBtn" aria-label="Wróć do menu">✕</button>
 
 <div class="overlay" id="startScreen">
   <div class="title">SwipeEcho<span class="dev-tag">DEV</span></div>
@@ -234,7 +263,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.006.001";
+const APP_VERSION = "0.007.000";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -247,6 +276,7 @@ const APP_VERSION = "0.006.001";
   const bestScoreLine = document.getElementById('bestScoreLine');
   const leaderboardScreen = document.getElementById('leaderboardScreen');
   const leaderboardList = document.getElementById('leaderboardList');
+  const exitBtn = document.getElementById('exitBtn');
 
   document.getElementById('versionBadge').textContent = 'v' + APP_VERSION;
 
@@ -507,18 +537,33 @@ const APP_VERSION = "0.006.001";
     state = 'playing';
     startScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
+    exitBtn.classList.add('visible');
     lastTime = performance.now();
     requestAnimationFrame(loop);
   }
 
   function endGame(){
     state = 'dead';
+    exitBtn.classList.remove('visible');
     finalScoreEl.textContent = score;
     if(score > bestScore){ bestScore = score; saveBest(bestScore); }
     bestScoreLine.textContent = 'rekord: ' + bestScore;
     gameOverScreen.classList.remove('hidden');
     offerScoreEntry(score);
   }
+
+  function quitToMenu(){
+    if(state !== 'playing') return;
+    state = 'idle';
+    exitBtn.classList.remove('visible');
+    // same hard-clear as starting a new run — don't leave the frantic mid-run
+    // canvas frozen behind the (blurred, semi-transparent) start screen.
+    ctx.fillStyle = '#0a0e1a';
+    ctx.fillRect(0, 0, W, H);
+    gameOverScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+  }
+  exitBtn.addEventListener('click', quitToMenu);
 
   document.getElementById('startBtn').addEventListener('click', startGame);
   document.getElementById('retryBtn').addEventListener('click', startGame);
