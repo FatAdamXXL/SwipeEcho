@@ -113,6 +113,23 @@
   .go-best{ font-size:12px; letter-spacing:0.1em; color:var(--muted); margin-bottom:26px; }
   .go-label{ font-size:12px; letter-spacing:0.2em; text-transform:uppercase; color:var(--danger); margin-bottom:10px; }
   .version-badge{ margin-top:20px; font-size:11px; letter-spacing:0.08em; color:var(--muted); opacity:0.6; }
+  .mute-btn{
+    margin-top:16px;
+    width:38px; height:38px;
+    border-radius:50%;
+    border:1.5px solid var(--muted);
+    background:transparent;
+    color:var(--muted);
+    font-size:16px;
+    line-height:1;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    transition: border-color .2s ease, color .2s ease, transform .15s ease;
+  }
+  .mute-btn:hover{ border-color:var(--player); color:var(--player); }
+  .mute-btn:active{ transform:scale(0.92); }
   .btn-muted{
     border-color:var(--muted);
     color:var(--muted);
@@ -224,12 +241,13 @@
     </div>
     <div class="legend-row">
       <div class="dot danger"></div>
-      <div class="legend-text"><b>Echo</b> — powtarza Twoją trasę sprzed chwili. Dotknięcie = koniec gry. Nowe echa pojawiają się bez końca i z czasem rusza się coraz szybciej.</div>
+      <div class="legend-text"><b>Echo</b> — powtarza Twoją trasę sprzed chwili. Dotknięcie = koniec gry. Świeże echo przez 3 sekundy miga i przenika przez Ciebie. Nowe echa pojawiają się bez końca i z czasem rusza się coraz szybciej.</div>
     </div>
   </div>
   <button class="btn" id="startBtn">Zacznij</button>
   <button class="btn btn-secondary visible" id="rankingBtn">Ranking</button>
   <button class="btn btn-secondary" id="installBtn">Zainstaluj</button>
+  <button class="mute-btn" id="muteBtn" aria-label="Wycisz muzykę menu">🔊</button>
   <div class="version-badge" id="versionBadge"></div>
   <button class="btn btn-secondary btn-muted" id="exitAppBtn">Wyjdź</button>
 </div>
@@ -245,6 +263,7 @@
     <div class="score-entry-status" id="scoreEntryStatus"></div>
   </div>
   <button class="btn" id="retryBtn">Jeszcze raz</button>
+  <button class="btn btn-secondary visible" id="menuBtn">Menu</button>
   <button class="btn btn-secondary visible" id="rankingBtnGameOver">Ranking</button>
 </div>
 
@@ -258,7 +277,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.007.004";
+const APP_VERSION = "0.009.003";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -465,6 +484,125 @@ const APP_VERSION = "0.007.004";
   window.addEventListener('resize', resize);
   resize();
 
+  // ---- music: menu theme on the menus, main theme during a run ----
+  const menuMusic = new Audio('assets/audio/menu-theme.mp3');
+  menuMusic.loop = true;
+  menuMusic.volume = 0.5;
+
+  // menu mute only affects the menu theme — never the in-run main theme or sfx
+  const MUTE_KEY = 'echo-menu-muted';
+  const muteBtn = document.getElementById('muteBtn');
+  function loadMenuMuted(){
+    try{ return window.localStorage.getItem(MUTE_KEY) === '1'; }catch(e){ return false; }
+  }
+  function saveMenuMuted(v){
+    try{ window.localStorage.setItem(MUTE_KEY, v ? '1' : '0'); }catch(e){}
+  }
+  let menuMuted = loadMenuMuted();
+  function applyMenuMuted(){
+    menuMusic.muted = menuMuted;
+    muteBtn.textContent = menuMuted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-label', menuMuted ? 'Włącz muzykę menu' : 'Wycisz muzykę menu');
+  }
+  applyMenuMuted();
+  muteBtn.addEventListener('click', () => {
+    menuMuted = !menuMuted;
+    saveMenuMuted(menuMuted);
+    applyMenuMuted();
+  });
+
+  // Native <audio> looping isn't gapless with MP3 (the LAME encoder pads the file
+  // with a few silent samples, which native loop plays back as an audible click/gap
+  // at the seam). The main theme needs a hard zero-gap loop, so it's decoded once
+  // into a raw buffer and looped sample-accurately via the Web Audio API instead.
+  const MAIN_THEME_VOLUME = 0.5;
+  let audioCtx = null;
+  let mainThemeBufferPromise = null;
+  let mainThemeSource = null;
+
+  function getAudioCtx(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+  function loadMainTheme(){
+    if(!mainThemeBufferPromise){
+      const ctx = getAudioCtx();
+      mainThemeBufferPromise = fetch('assets/audio/main-theme.mp3')
+        .then(res => res.arrayBuffer())
+        .then(data => ctx.decodeAudioData(data));
+    }
+    return mainThemeBufferPromise;
+  }
+  loadMainTheme().catch(() => {}); // decode ahead of time so playback starts instantly
+
+  // synthesized coin-pickup blip — no audio file, just an oscillator + a fast
+  // volume envelope so it doesn't click on start/stop. Two quick notes, low then
+  // high, like a classic arcade coin sound.
+  function playCoinSound(){
+    try{
+      const ctx = getAudioCtx();
+      if(ctx.state === 'suspended') ctx.resume();
+      const now = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle'; // rounder, bassier than square's buzzy harmonics
+      const gain = ctx.createGain();
+      osc.connect(gain).connect(ctx.destination);
+
+      osc.frequency.setValueAtTime(494, now);         // B4 — down an octave
+      osc.frequency.setValueAtTime(784, now + 0.06);  // G5 — down an octave
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.175, now + 0.01); // 30% quieter (was 0.25)
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+      osc.start(now);
+      osc.stop(now + 0.2);
+    }catch(e){}
+  }
+
+  function stopMainMusic(){
+    if(mainThemeSource){
+      try{ mainThemeSource.stop(); }catch(e){}
+      mainThemeSource.disconnect();
+      mainThemeSource = null;
+    }
+  }
+
+  function playMenuMusic(){
+    stopMainMusic();
+    menuMusic.play().catch(() => {});
+  }
+  async function playMainMusic(){
+    menuMusic.pause();
+    stopMainMusic();
+    try{
+      const ctx = getAudioCtx();
+      if(ctx.state === 'suspended') await ctx.resume();
+      const buffer = await loadMainTheme();
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      const gain = ctx.createGain();
+      gain.gain.value = MAIN_THEME_VOLUME;
+      source.connect(gain).connect(ctx.destination);
+      source.start(0);
+      mainThemeSource = source;
+    }catch(e){}
+  }
+
+  // browsers block autoplay before any user interaction — try immediately (works
+  // once installed/re-launched with an interaction already "spent"), and again on
+  // the first tap/click/key anywhere as a guaranteed fallback.
+  playMenuMusic();
+  function retryMenuMusicOnce(){
+    if(state !== 'playing') playMenuMusic();
+    window.removeEventListener('pointerdown', retryMenuMusicOnce);
+    window.removeEventListener('keydown', retryMenuMusicOnce);
+  }
+  window.addEventListener('pointerdown', retryMenuMusicOnce);
+  window.addEventListener('keydown', retryMenuMusicOnce);
+
   // ---- persistence (personal best) ----
   const BEST_KEY = 'echo-best-score';
   let bestScore = 0;
@@ -500,6 +638,10 @@ const APP_VERSION = "0.007.004";
   // forgiving start, relentlessly faster the longer you survive.
   const ECHO_SPEED_START = 0.25;
   const ECHO_SPEED_ACCEL = 0.01; // added to the multiplier per second, unbounded
+
+  // a freshly spawned echo is intangible and flickers for a couple seconds before
+  // it can actually kill you — gives a beat to notice and react to it.
+  const SPAWN_GRACE = 3.0;
 
   let state = 'idle';
   let player, echoes, trail, recTimer, sparkPos, score, elapsed, lastTime, sampleAcc;
@@ -554,6 +696,7 @@ const APP_VERSION = "0.007.004";
     startScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
     exitBtn.classList.add('visible');
+    playMainMusic();
     lastTime = performance.now();
     requestAnimationFrame(loop);
   }
@@ -561,6 +704,7 @@ const APP_VERSION = "0.007.004";
   function endGame(){
     state = 'dead';
     exitBtn.classList.remove('visible');
+    playMenuMusic();
     finalScoreEl.textContent = score;
     if(score > bestScore){ bestScore = score; saveBest(bestScore); }
     bestScoreLine.textContent = 'rekord: ' + bestScore;
@@ -568,18 +712,23 @@ const APP_VERSION = "0.007.004";
     offerScoreEntry(score);
   }
 
-  function quitToMenu(){
-    if(state !== 'playing') return;
+  function backToMenu(){
     state = 'idle';
     exitBtn.classList.remove('visible');
-    // same hard-clear as starting a new run — don't leave the frantic mid-run
-    // canvas frozen behind the (blurred, semi-transparent) start screen.
+    playMenuMusic();
+    // same hard-clear as starting a new run — don't leave a frozen mid-game or
+    // game-over frame behind the (blurred, semi-transparent) start screen.
     ctx.fillStyle = '#0a0e1a';
     ctx.fillRect(0, 0, W, H);
     gameOverScreen.classList.add('hidden');
     startScreen.classList.remove('hidden');
   }
+  function quitToMenu(){
+    if(state !== 'playing') return;
+    backToMenu();
+  }
   exitBtn.addEventListener('click', quitToMenu);
+  document.getElementById('menuBtn').addEventListener('click', backToMenu);
 
   document.getElementById('startBtn').addEventListener('click', startGame);
   document.getElementById('retryBtn').addEventListener('click', startGame);
@@ -603,7 +752,7 @@ const APP_VERSION = "0.007.004";
 
     if(recTimer >= RECORD_INTERVAL && trail.length > 4){
       const path = trail.slice();
-      echoes.push({ path, posAcc: 0, x: path[0].x, y: path[0].y });
+      echoes.push({ path, posAcc: 0, x: path[0].x, y: path[0].y, bornAt: elapsed });
       recTimer = 0;
     }
 
@@ -629,7 +778,9 @@ const APP_VERSION = "0.007.004";
 
       const touching = dist(player, e) < PLAYER_R + ECHO_R - 2;
 
-      if(touching){
+      // freshly spawned echoes are intangible for SPAWN_GRACE seconds — they
+      // flicker (see render()) but pass right through the player.
+      if(touching && elapsed - e.bornAt >= SPAWN_GRACE){
         endGame();
         return;
       }
@@ -637,6 +788,7 @@ const APP_VERSION = "0.007.004";
 
     if(dist(player, sparkPos) < PLAYER_R + SPARK_R){
       score += 1;
+      playCoinSound();
       sparkPos = randomSpark();
     }
 
@@ -662,7 +814,17 @@ const APP_VERSION = "0.007.004";
     glowDot(sparkPos.x, sparkPos.y, SPARK_R*pulse, '#fbbf24', 'rgba(251,191,36,0.65)', 16);
 
     for(const e of echoes){
-      glowDot(e.x, e.y, ECHO_R, '#a78bfa', 'rgba(167,139,250,0.65)', 14);
+      const age = elapsed - e.bornAt;
+      if(age < SPAWN_GRACE){
+        // fast flicker while intangible, telegraphing "can't hurt you yet"
+        const flicker = Math.sin(performance.now() / 55) > 0 ? 0.85 : 0.15;
+        ctx.save();
+        ctx.globalAlpha = flicker;
+        glowDot(e.x, e.y, ECHO_R, '#a78bfa', 'rgba(167,139,250,0.65)', 14);
+        ctx.restore();
+      } else {
+        glowDot(e.x, e.y, ECHO_R, '#a78bfa', 'rgba(167,139,250,0.65)', 14);
+      }
     }
 
     glowDot(player.x, player.y, PLAYER_R, '#5eead4', 'rgba(94,234,212,0.7)', 20);
