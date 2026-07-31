@@ -134,6 +134,52 @@
   }
   .btn-secondary:hover{ background:rgba(219,228,240,0.06); box-shadow:none; }
   .btn-secondary.visible{ display:inline-block; }
+  .lb-heading{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:28px;
+    color:var(--player);
+    margin:0 0 20px 0;
+  }
+  .leaderboard-list{
+    width:100%;
+    max-width:320px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    margin-bottom:22px;
+    max-height:50vh;
+    overflow-y:auto;
+    text-align:left;
+  }
+  .lb-row{ display:flex; align-items:center; gap:10px; font-size:13px; padding:5px 4px; }
+  .lb-rank{ width:24px; color:var(--muted); flex-shrink:0; }
+  .lb-name{ flex:1; color:var(--text); letter-spacing:0.05em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lb-score{ color:var(--treasure); font-weight:600; }
+  .lb-empty, .lb-error{ color:var(--muted); font-size:13px; padding:20px 0; }
+  .score-entry{
+    display:none;
+    flex-direction:column; align-items:center; gap:10px;
+    margin-bottom:20px;
+  }
+  .score-entry.visible{ display:flex; }
+  .score-entry-label{ font-size:12px; letter-spacing:0.15em; text-transform:uppercase; color:var(--treasure); }
+  .nickname-input{
+    font-family:'JetBrains Mono', ui-monospace, monospace;
+    font-size:18px;
+    letter-spacing:0.2em;
+    text-transform:uppercase;
+    text-align:center;
+    width:150px;
+    padding:10px;
+    border-radius:10px;
+    border:1.5px solid var(--player);
+    background:transparent;
+    color:var(--text);
+    outline:none;
+  }
+  .nickname-input:focus{ box-shadow:0 0 16px var(--player-glow); }
+  .score-entry-status{ font-size:12px; color:var(--player); letter-spacing:0.1em; min-height:14px; }
   @media (prefers-reduced-motion: reduce){ .btn{ transition:none; } }
 </style>
 </head>
@@ -159,6 +205,7 @@
     </div>
   </div>
   <button class="btn" id="startBtn">Zacznij</button>
+  <button class="btn btn-secondary visible" id="rankingBtn">Ranking</button>
   <button class="btn btn-secondary" id="installBtn">Zainstaluj</button>
   <div class="version-badge" id="versionBadge"></div>
 </div>
@@ -167,14 +214,27 @@
   <div class="go-label">przegrałeś</div>
   <div class="go-score" id="finalScore">0</div>
   <div class="go-best" id="bestScoreLine">rekord: 0</div>
+  <div class="score-entry" id="scoreEntry">
+    <div class="score-entry-label">Łapiesz się do TOP 25!</div>
+    <input class="nickname-input" id="nicknameInput" maxlength="8" placeholder="KSYWKA" autocomplete="off">
+    <button class="btn" id="submitScoreBtn">Zapisz wynik</button>
+    <div class="score-entry-status" id="scoreEntryStatus"></div>
+  </div>
   <button class="btn" id="retryBtn">Jeszcze raz</button>
+  <button class="btn btn-secondary visible" id="rankingBtnGameOver">Ranking</button>
+</div>
+
+<div class="overlay hidden" id="leaderboardScreen">
+  <div class="lb-heading">Ranking</div>
+  <div class="leaderboard-list" id="leaderboardList"></div>
+  <button class="btn" id="closeLeaderboardBtn">Zamknij</button>
 </div>
 
 <script>
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.005.004";
+const APP_VERSION = "0.006.000";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -185,6 +245,8 @@ const APP_VERSION = "0.005.004";
   const gameOverScreen = document.getElementById('gameOverScreen');
   const finalScoreEl = document.getElementById('finalScore');
   const bestScoreLine = document.getElementById('bestScoreLine');
+  const leaderboardScreen = document.getElementById('leaderboardScreen');
+  const leaderboardList = document.getElementById('leaderboardList');
 
   document.getElementById('versionBadge').textContent = 'v' + APP_VERSION;
 
@@ -208,6 +270,138 @@ const APP_VERSION = "0.005.004";
   window.addEventListener('appinstalled', () => {
     deferredInstallPrompt = null;
     installBtn.classList.remove('visible');
+  });
+
+  // ---- global leaderboard (Supabase, top 25) ----
+  // Public/publishable key only — safe to embed client-side, real access control
+  // lives in the DB's Row Level Security policies (see supabase/leaderboard.sql).
+  // Everything here fails silently: the leaderboard is a nice-to-have, never
+  // something the core game depends on.
+  const SUPABASE_URL = "https://hwnvjtputpffjienhkxt.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_nC8Be47Cw-r6_uT142N_dg_627fznbD";
+  const LEADERBOARD_SIZE = 25;
+
+  let supabaseClientPromise = null;
+  function getSupabaseClient(){
+    if(!supabaseClientPromise){
+      supabaseClientPromise = import("https://esm.sh/@supabase/supabase-js@2")
+        .then(({ createClient }) => createClient(SUPABASE_URL, SUPABASE_ANON_KEY));
+    }
+    return supabaseClientPromise;
+  }
+
+  async function fetchTopScores(){
+    const client = await getSupabaseClient();
+    const { data, error } = await client
+      .from('swipeecho_scores')
+      .select('nickname,score')
+      .order('score', { ascending: false })
+      .limit(LEADERBOARD_SIZE);
+    if(error) throw error;
+    return data;
+  }
+
+  async function qualifiesForLeaderboard(candidateScore){
+    try{
+      const rows = await fetchTopScores();
+      if(rows.length < LEADERBOARD_SIZE) return true;
+      const lowest = rows[rows.length - 1].score;
+      return candidateScore > lowest;
+    }catch(e){
+      return false;
+    }
+  }
+
+  async function submitScore(nickname, scoreValue){
+    const client = await getSupabaseClient();
+    const { error } = await client.from('swipeecho_scores').insert({ nickname, score: scoreValue });
+    if(error) throw error;
+  }
+
+  function renderLeaderboard(rows){
+    leaderboardList.innerHTML = '';
+    if(rows.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'lb-empty';
+      empty.textContent = 'Brak wyników. Bądź pierwszy!';
+      leaderboardList.appendChild(empty);
+      return;
+    }
+    rows.forEach((row, i) => {
+      const line = document.createElement('div');
+      line.className = 'lb-row';
+      const rank = document.createElement('span');
+      rank.className = 'lb-rank';
+      rank.textContent = (i + 1) + '.';
+      const name = document.createElement('span');
+      name.className = 'lb-name';
+      name.textContent = row.nickname;
+      const pts = document.createElement('span');
+      pts.className = 'lb-score';
+      pts.textContent = row.score;
+      line.append(rank, name, pts);
+      leaderboardList.appendChild(line);
+    });
+  }
+
+  async function openLeaderboard(){
+    leaderboardScreen.classList.remove('hidden');
+    leaderboardList.innerHTML = '';
+    const loading = document.createElement('div');
+    loading.className = 'lb-empty';
+    loading.textContent = 'Ładowanie…';
+    leaderboardList.appendChild(loading);
+    try{
+      const rows = await fetchTopScores();
+      renderLeaderboard(rows);
+    }catch(e){
+      leaderboardList.innerHTML = '';
+      const err = document.createElement('div');
+      err.className = 'lb-error';
+      err.textContent = 'Nie udało się wczytać rankingu.';
+      leaderboardList.appendChild(err);
+    }
+  }
+
+  document.getElementById('rankingBtn').addEventListener('click', openLeaderboard);
+  document.getElementById('rankingBtnGameOver').addEventListener('click', openLeaderboard);
+  document.getElementById('closeLeaderboardBtn').addEventListener('click', () => {
+    leaderboardScreen.classList.add('hidden');
+  });
+
+  const scoreEntry = document.getElementById('scoreEntry');
+  const nicknameInput = document.getElementById('nicknameInput');
+  const submitScoreBtn = document.getElementById('submitScoreBtn');
+  const scoreEntryStatus = document.getElementById('scoreEntryStatus');
+  let pendingScore = 0;
+
+  async function offerScoreEntry(finalScoreValue){
+    pendingScore = finalScoreValue;
+    scoreEntry.classList.remove('visible');
+    nicknameInput.value = '';
+    nicknameInput.disabled = false;
+    submitScoreBtn.disabled = false;
+    scoreEntryStatus.textContent = '';
+    const qualifies = await qualifiesForLeaderboard(finalScoreValue);
+    // the player may have already started a new run by the time this resolves
+    if(state !== 'dead') return;
+    if(qualifies) scoreEntry.classList.add('visible');
+  }
+
+  submitScoreBtn.addEventListener('click', async () => {
+    const nickname = nicknameInput.value.trim().toUpperCase().slice(0, 8);
+    if(!nickname) return;
+    nicknameInput.disabled = true;
+    submitScoreBtn.disabled = true;
+    scoreEntryStatus.textContent = 'Zapisywanie…';
+    try{
+      await submitScore(nickname, pendingScore);
+      scoreEntryStatus.textContent = 'Zapisano!';
+    }catch(e){
+      scoreEntryStatus.textContent = 'Nie udało się zapisać, spróbuj ponownie.';
+      nicknameInput.disabled = false;
+      submitScoreBtn.disabled = false;
+    }
   });
 
   let W, H, DPR;
@@ -319,6 +513,7 @@ const APP_VERSION = "0.005.004";
     if(score > bestScore){ bestScore = score; saveBest(bestScore); }
     bestScoreLine.textContent = 'rekord: ' + bestScore;
     gameOverScreen.classList.remove('hidden');
+    offerScoreEntry(score);
   }
 
   document.getElementById('startBtn').addEventListener('click', startGame);
