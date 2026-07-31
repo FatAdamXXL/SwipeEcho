@@ -234,7 +234,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.006.000";
+const APP_VERSION = "0.006.001";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -280,6 +280,9 @@ const APP_VERSION = "0.006.000";
   const SUPABASE_URL = "https://hwnvjtputpffjienhkxt.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_nC8Be47Cw-r6_uT142N_dg_627fznbD";
   const LEADERBOARD_SIZE = 25;
+  // Free-tier Supabase has no per-branch database, so dev and main share one table —
+  // this tags every read/write so each build only ever sees its own scores.
+  const LEADERBOARD_BRANCH = 'DEV';
 
   let supabaseClientPromise = null;
   function getSupabaseClient(){
@@ -295,6 +298,7 @@ const APP_VERSION = "0.006.000";
     const { data, error } = await client
       .from('swipeecho_scores')
       .select('nickname,score')
+      .eq('branch', LEADERBOARD_BRANCH)
       .order('score', { ascending: false })
       .limit(LEADERBOARD_SIZE);
     if(error) throw error;
@@ -314,7 +318,7 @@ const APP_VERSION = "0.006.000";
 
   async function submitScore(nickname, scoreValue){
     const client = await getSupabaseClient();
-    const { error } = await client.from('swipeecho_scores').insert({ nickname, score: scoreValue });
+    const { error } = await client.from('swipeecho_scores').insert({ nickname, score: scoreValue, branch: LEADERBOARD_BRANCH });
     if(error) throw error;
   }
 
