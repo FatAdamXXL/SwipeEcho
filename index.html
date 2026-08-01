@@ -288,7 +288,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.009.004";
+const APP_VERSION = "0.009.005";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -506,7 +506,7 @@ const APP_VERSION = "0.009.004";
   // ---- music: menu theme on the menus, main theme during a run ----
   const menuMusic = new Audio('assets/audio/menu-theme.mp3');
   menuMusic.loop = true;
-  menuMusic.volume = 0.475; // 5% quieter than the original 0.5
+  menuMusic.volume = 0.45125; // another 5% down from 0.475
 
   // menu mute only affects the menu theme — never the in-run main theme or sfx
   const MUTE_KEY = 'echo-menu-muted';
@@ -572,7 +572,7 @@ const APP_VERSION = "0.009.004";
       osc.frequency.setValueAtTime(784, now + 0.06);  // G5 — down an octave
 
       gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.1925, now + 0.01); // 10% louder than 0.175
+      gain.gain.exponentialRampToValueAtTime(0.21175, now + 0.01); // another 10% up from 0.1925
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
 
       osc.start(now);
