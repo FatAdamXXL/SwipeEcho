@@ -288,7 +288,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.009.003";
+const APP_VERSION = "0.009.004";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -484,6 +484,14 @@ const APP_VERSION = "0.009.003";
     }
   });
 
+  // portrait-only: the manifest's "orientation":"portrait" locks it once installed,
+  // but this also tries the Screen Orientation API directly for browser tabs — it
+  // only succeeds in fullscreen contexts on most mobile browsers, so the failure is
+  // expected/harmless everywhere else and just silently ignored.
+  if(screen.orientation && screen.orientation.lock){
+    screen.orientation.lock('portrait').catch(() => {});
+  }
+
   let W, H, DPR;
   function resize(){
     DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -498,7 +506,7 @@ const APP_VERSION = "0.009.003";
   // ---- music: menu theme on the menus, main theme during a run ----
   const menuMusic = new Audio('assets/audio/menu-theme.mp3');
   menuMusic.loop = true;
-  menuMusic.volume = 0.5;
+  menuMusic.volume = 0.475; // 5% quieter than the original 0.5
 
   // menu mute only affects the menu theme — never the in-run main theme or sfx
   const MUTE_KEY = 'echo-menu-muted';
@@ -564,7 +572,7 @@ const APP_VERSION = "0.009.003";
       osc.frequency.setValueAtTime(784, now + 0.06);  // G5 — down an octave
 
       gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.175, now + 0.01); // 30% quieter (was 0.25)
+      gain.gain.exponentialRampToValueAtTime(0.1925, now + 0.01); // 10% louder than 0.175
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
 
       osc.start(now);
