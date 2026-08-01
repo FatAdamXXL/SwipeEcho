@@ -6,7 +6,7 @@
   "scope": "./",
   "id": ".",
   "display": "fullscreen",
-  "orientation": "any",
+  "orientation": "portrait",
   "background_color": "#0a0e1a",
   "theme_color": "#0a0e1a",
   "lang": "pl",
