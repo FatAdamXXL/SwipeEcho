@@ -5,7 +5,7 @@
 -- table. The "branch" column keeps their scores separate — the app filters by it.
 create table public.swipeecho_scores (
   id bigint generated always as identity primary key,
-  nickname text not null check (char_length(nickname) between 1 and 8),
+  nickname text not null check (char_length(nickname) between 1 and 12),
   score integer not null check (score >= 0),
   branch text not null check (branch in ('DEV', 'MAIN')),
   -- MOBILE vs PC, detected client-side (touch/coarse-pointer heuristic). Nullable —
@@ -31,6 +31,6 @@ create policy "swipeecho_scores_insert"
   on public.swipeecho_scores for insert
   to anon
   with check (
-    char_length(nickname) between 1 and 8
+    char_length(nickname) between 1 and 12
     and score >= 0
   );
