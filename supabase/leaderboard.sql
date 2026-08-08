@@ -8,10 +8,14 @@ create table public.swipeecho_scores (
   nickname text not null check (char_length(nickname) between 1 and 8),
   score integer not null check (score >= 0),
   branch text not null check (branch in ('DEV', 'MAIN')),
+  -- MOBILE vs PC, detected client-side (touch/coarse-pointer heuristic). Nullable —
+  -- rows from before this column existed can't be attributed after the fact.
+  platform text check (platform in ('MOBILE', 'PC')),
   created_at timestamptz not null default now()
 );
 
 create index swipeecho_scores_branch_score_idx on public.swipeecho_scores (branch, score desc);
+create index swipeecho_scores_branch_platform_score_idx on public.swipeecho_scores (branch, platform, score desc);
 
 alter table public.swipeecho_scores enable row level security;
 
