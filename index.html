@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>SwipeEcho</title>
-<meta name="description" content="SwipeEcho — unikaj echa własnej trasy sprzed chwili, zanim Cię dogoni.">
+<meta name="description" content="SwipeEcho — avoid the echo of your own trail from moments ago, before it catches you.">
 <meta name="theme-color" content="#0a0e1a">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 
@@ -179,6 +179,30 @@
   .exit-btn.visible{ display:flex; }
   .exit-btn:hover{ border-color:var(--danger); color:var(--danger); }
   .exit-btn:active{ transform:translateX(-50%) scale(0.9); }
+  .lang-switch{
+    position:fixed;
+    top: max(14px, env(safe-area-inset-top));
+    right:16px;
+    display:flex;
+    gap:6px;
+    z-index:11;
+  }
+  .lang-switch.hidden{ display:none; }
+  .lang-btn{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:11px;
+    letter-spacing:0.08em;
+    padding:6px 12px;
+    border-radius:100px;
+    border:1.5px solid var(--muted);
+    color:var(--muted);
+    background:rgba(10,14,26,0.4);
+    cursor:pointer;
+    transition: border-color .2s ease, color .2s ease;
+  }
+  .lang-btn.active{ border-color:var(--player); color:var(--player); }
+  .lang-btn:hover{ border-color:var(--player); }
   .lb-heading{
     font-family:'Space Grotesk', sans-serif;
     font-weight:700;
@@ -260,66 +284,71 @@
 <canvas id="game"></canvas>
 
 <div class="hud">
-  <div class="score">WYNIK <b id="hudScore">0</b></div>
-  <div class="echoes">ZAGROŻENIA <b id="hudEchoes">0</b></div>
+  <div class="score"><span id="scoreLabel">SCORE</span> <b id="hudScore">0</b></div>
+  <div class="echoes"><span id="threatsLabel">THREATS</span> <b id="hudEchoes">0</b></div>
 </div>
 
-<button class="exit-btn" id="exitBtn" aria-label="Wróć do menu">✕</button>
+<button class="exit-btn" id="exitBtn" aria-label="Back to menu">✕</button>
+
+<div class="lang-switch" id="langSwitch">
+  <button class="lang-btn active" id="langEnBtn">EN</button>
+  <button class="lang-btn" id="langPlBtn">PL</button>
+</div>
 
 <div class="overlay" id="startScreen">
   <div class="title">SwipeEcho<span class="dev-tag">DEV</span></div>
   <div class="legend">
     <div class="legend-row">
       <div class="dot player"></div>
-      <div class="legend-text"><b>Ty</b> - steruj</div>
+      <div class="legend-text" id="legendPlayer"><b>You</b> - control</div>
     </div>
     <div class="legend-row">
       <div class="dot danger"></div>
-      <div class="legend-text"><b>Echo</b> - przeciwnik</div>
+      <div class="legend-text" id="legendEcho"><b>Echo</b> - enemy</div>
     </div>
     <div class="legend-row">
       <div class="dot treasure"></div>
-      <div class="legend-text"><b>Monety</b> - zbieraj</div>
+      <div class="legend-text" id="legendCoins"><b>Coins</b> - collect</div>
     </div>
   </div>
-  <button class="btn" id="startBtn">Zacznij</button>
-  <button class="btn btn-secondary visible" id="rankingBtn">Ranking</button>
-  <button class="btn btn-secondary" id="installBtn">Zainstaluj</button>
-  <button class="mute-btn" id="muteBtn" aria-label="Wycisz muzykę menu">🔊</button>
+  <button class="btn" id="startBtn">Start</button>
+  <button class="btn btn-secondary visible" id="rankingBtn">Leaderboard</button>
+  <button class="btn btn-secondary" id="installBtn">Install</button>
+  <button class="mute-btn" id="muteBtn" aria-label="Mute menu music">🔊</button>
   <div class="version-badge" id="versionBadge"></div>
-  <button class="btn btn-secondary btn-muted" id="exitAppBtn">Wyjdź</button>
+  <button class="btn btn-secondary btn-muted" id="exitAppBtn">Exit</button>
 </div>
 
 <div class="overlay hidden" id="gameOverScreen">
-  <div class="go-label">przegrałeś</div>
+  <div class="go-label" id="goLabel">game over</div>
   <div class="go-score" id="finalScore">0</div>
-  <div class="go-best" id="bestScoreLine">rekord: 0</div>
+  <div class="go-best" id="bestScoreLine">best: 0</div>
   <div class="score-entry" id="scoreEntry">
-    <div class="score-entry-label">Łapiesz się do TOP 100!</div>
-    <input class="nickname-input" id="nicknameInput" maxlength="12" placeholder="KSYWKA" autocomplete="off">
-    <button class="btn" id="submitScoreBtn">Zapisz wynik</button>
+    <div class="score-entry-label" id="scoreEntryLabel">You're in the TOP 100!</div>
+    <input class="nickname-input" id="nicknameInput" maxlength="12" placeholder="NICKNAME" autocomplete="off">
+    <button class="btn" id="submitScoreBtn">Save score</button>
     <div class="score-entry-status" id="scoreEntryStatus"></div>
   </div>
-  <button class="btn" id="retryBtn">Jeszcze raz</button>
+  <button class="btn" id="retryBtn">Retry</button>
   <button class="btn btn-secondary visible" id="menuBtn">Menu</button>
-  <button class="btn btn-secondary visible" id="rankingBtnGameOver">Ranking</button>
+  <button class="btn btn-secondary visible" id="rankingBtnGameOver">Leaderboard</button>
 </div>
 
 <div class="overlay hidden" id="leaderboardScreen">
-  <div class="lb-heading">Ranking</div>
+  <div class="lb-heading" id="lbHeading">Leaderboard</div>
   <div class="lb-tabs">
-    <button class="lb-tab" id="lbTabMobile" data-platform="MOBILE">Telefon</button>
+    <button class="lb-tab" id="lbTabMobile" data-platform="MOBILE">Phone</button>
     <button class="lb-tab" id="lbTabPc" data-platform="PC">PC</button>
   </div>
   <div class="leaderboard-list" id="leaderboardList"></div>
-  <button class="btn" id="closeLeaderboardBtn">Zamknij</button>
+  <button class="btn" id="closeLeaderboardBtn">Close</button>
 </div>
 
 <script>
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.010.008";
+const APP_VERSION = "0.011.000";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -335,6 +364,127 @@ const APP_VERSION = "0.010.008";
   const exitBtn = document.getElementById('exitBtn');
 
   document.getElementById('versionBadge').textContent = 'v' + APP_VERSION;
+
+  // ---- language (EN default, PL switchable) ----
+  const I18N = {
+    en: {
+      htmlLang: 'en',
+      scoreLabel: 'SCORE',
+      threatsLabel: 'THREATS',
+      legendPlayer: '<b>You</b> - control',
+      legendEcho: '<b>Echo</b> - enemy',
+      legendCoins: '<b>Coins</b> - collect',
+      start: 'Start',
+      leaderboard: 'Leaderboard',
+      install: 'Install',
+      exit: 'Exit',
+      exitToMenu: 'Back to menu',
+      muteMenuMusic: 'Mute menu music',
+      unmuteMenuMusic: 'Unmute menu music',
+      gameOver: 'game over',
+      best: 'best: ',
+      top100: "You're in the TOP 100!",
+      nicknamePlaceholder: 'NICKNAME',
+      saveScore: 'Save score',
+      saving: 'Saving…',
+      saved: 'Saved!',
+      saveFailed: 'Failed to save, try again.',
+      retry: 'Retry',
+      menu: 'Menu',
+      phone: 'Phone',
+      pc: 'PC',
+      close: 'Close',
+      noScores: 'No scores yet. Be the first!',
+      loading: 'Loading…',
+      loadFailed: 'Failed to load leaderboard.',
+    },
+    pl: {
+      htmlLang: 'pl',
+      scoreLabel: 'WYNIK',
+      threatsLabel: 'ZAGROŻENIA',
+      legendPlayer: '<b>Ty</b> - steruj',
+      legendEcho: '<b>Echo</b> - przeciwnik',
+      legendCoins: '<b>Monety</b> - zbieraj',
+      start: 'Zacznij',
+      leaderboard: 'Ranking',
+      install: 'Zainstaluj',
+      exit: 'Wyjdź',
+      exitToMenu: 'Wróć do menu',
+      muteMenuMusic: 'Wycisz muzykę menu',
+      unmuteMenuMusic: 'Włącz muzykę menu',
+      gameOver: 'przegrałeś',
+      best: 'rekord: ',
+      top100: 'Łapiesz się do TOP 100!',
+      nicknamePlaceholder: 'KSYWKA',
+      saveScore: 'Zapisz wynik',
+      saving: 'Zapisywanie…',
+      saved: 'Zapisano!',
+      saveFailed: 'Nie udało się zapisać, spróbuj ponownie.',
+      retry: 'Jeszcze raz',
+      menu: 'Menu',
+      phone: 'Telefon',
+      pc: 'PC',
+      close: 'Zamknij',
+      noScores: 'Brak wyników. Bądź pierwszy!',
+      loading: 'Ładowanie…',
+      loadFailed: 'Nie udało się wczytać rankingu.',
+    },
+  };
+  const LANG_KEY = 'echo-lang';
+  function loadLang(){
+    try{
+      const v = window.localStorage.getItem(LANG_KEY);
+      return (v === 'pl' || v === 'en') ? v : 'en';
+    }catch(e){ return 'en'; }
+  }
+  function saveLang(v){
+    try{ window.localStorage.setItem(LANG_KEY, v); }catch(e){}
+  }
+  let lang = loadLang();
+  function t(key){ return I18N[lang][key]; }
+
+  const langSwitch = document.getElementById('langSwitch');
+  const langEnBtn = document.getElementById('langEnBtn');
+  const langPlBtn = document.getElementById('langPlBtn');
+  const scoreLabelEl = document.getElementById('scoreLabel');
+  const threatsLabelEl = document.getElementById('threatsLabel');
+  const legendPlayerEl = document.getElementById('legendPlayer');
+  const legendEchoEl = document.getElementById('legendEcho');
+  const legendCoinsEl = document.getElementById('legendCoins');
+  const goLabelEl = document.getElementById('goLabel');
+  const scoreEntryLabelEl = document.getElementById('scoreEntryLabel');
+  const lbHeadingEl = document.getElementById('lbHeading');
+
+  function applyLanguage(){
+    document.documentElement.lang = t('htmlLang');
+    scoreLabelEl.textContent = t('scoreLabel');
+    threatsLabelEl.textContent = t('threatsLabel');
+    legendPlayerEl.innerHTML = t('legendPlayer');
+    legendEchoEl.innerHTML = t('legendEcho');
+    legendCoinsEl.innerHTML = t('legendCoins');
+    document.getElementById('startBtn').textContent = t('start');
+    document.getElementById('rankingBtn').textContent = t('leaderboard');
+    document.getElementById('rankingBtnGameOver').textContent = t('leaderboard');
+    installBtn.textContent = t('install');
+    document.getElementById('exitAppBtn').textContent = t('exit');
+    exitBtn.setAttribute('aria-label', t('exitToMenu'));
+    goLabelEl.textContent = t('gameOver');
+    bestScoreLine.textContent = t('best') + bestScore;
+    scoreEntryLabelEl.textContent = t('top100');
+    nicknameInput.setAttribute('placeholder', t('nicknamePlaceholder'));
+    submitScoreBtn.textContent = t('saveScore');
+    document.getElementById('retryBtn').textContent = t('retry');
+    document.getElementById('menuBtn').textContent = t('menu');
+    lbHeadingEl.textContent = t('leaderboard');
+    lbTabMobile.textContent = t('phone');
+    lbTabPc.textContent = t('pc');
+    document.getElementById('closeLeaderboardBtn').textContent = t('close');
+    applyMenuMuted();
+    langEnBtn.classList.toggle('active', lang === 'en');
+    langPlBtn.classList.toggle('active', lang === 'pl');
+  }
+  langEnBtn.addEventListener('click', () => { lang = 'en'; saveLang(lang); applyLanguage(); });
+  langPlBtn.addEventListener('click', () => { lang = 'pl'; saveLang(lang); applyLanguage(); });
 
   // ---- install prompt (browsers don't always surface their own) ----
   const installBtn = document.getElementById('installBtn');
@@ -441,7 +591,7 @@ const APP_VERSION = "0.010.008";
     if(rows.length === 0){
       const empty = document.createElement('div');
       empty.className = 'lb-empty';
-      empty.textContent = 'Brak wyników. Bądź pierwszy!';
+      empty.textContent = t('noScores');
       leaderboardList.appendChild(empty);
       return;
     }
@@ -474,7 +624,7 @@ const APP_VERSION = "0.010.008";
     leaderboardList.innerHTML = '';
     const loading = document.createElement('div');
     loading.className = 'lb-empty';
-    loading.textContent = 'Ładowanie…';
+    loading.textContent = t('loading');
     leaderboardList.appendChild(loading);
     try{
       const rows = await fetchTopScores(leaderboardFilter);
@@ -483,7 +633,7 @@ const APP_VERSION = "0.010.008";
       leaderboardList.innerHTML = '';
       const err = document.createElement('div');
       err.className = 'lb-error';
-      err.textContent = 'Nie udało się wczytać rankingu.';
+      err.textContent = t('loadFailed');
       leaderboardList.appendChild(err);
     }
   }
@@ -536,13 +686,13 @@ const APP_VERSION = "0.010.008";
     if(!nickname) return;
     nicknameInput.disabled = true;
     submitScoreBtn.disabled = true;
-    scoreEntryStatus.textContent = 'Zapisywanie…';
+    scoreEntryStatus.textContent = t('saving');
     try{
       await submitScore(nickname, pendingScore);
       saveNickname(nickname);
-      scoreEntryStatus.textContent = 'Zapisano!';
+      scoreEntryStatus.textContent = t('saved');
     }catch(e){
-      scoreEntryStatus.textContent = 'Nie udało się zapisać, spróbuj ponownie.';
+      scoreEntryStatus.textContent = t('saveFailed');
       nicknameInput.disabled = false;
       submitScoreBtn.disabled = false;
     }
@@ -585,7 +735,7 @@ const APP_VERSION = "0.010.008";
   function applyMenuMuted(){
     menuMusic.muted = menuMuted;
     muteBtn.textContent = menuMuted ? '🔇' : '🔊';
-    muteBtn.setAttribute('aria-label', menuMuted ? 'Włącz muzykę menu' : 'Wycisz muzykę menu');
+    muteBtn.setAttribute('aria-label', menuMuted ? t('unmuteMenuMusic') : t('muteMenuMusic'));
   }
   applyMenuMuted();
   muteBtn.addEventListener('click', () => {
@@ -699,6 +849,7 @@ const APP_VERSION = "0.010.008";
     try{ window.localStorage.setItem(BEST_KEY, String(v)); }catch(e){}
   }
   loadBest();
+  applyLanguage();
 
   // ---- input ----
   let pointer = null;
@@ -779,6 +930,7 @@ const APP_VERSION = "0.010.008";
     startScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
     exitBtn.classList.add('visible');
+    langSwitch.classList.add('hidden');
     playMainMusic();
     lastTime = performance.now();
     requestAnimationFrame(loop);
@@ -787,10 +939,11 @@ const APP_VERSION = "0.010.008";
   function endGame(){
     state = 'dead';
     exitBtn.classList.remove('visible');
+    langSwitch.classList.remove('hidden');
     playMenuMusic();
     finalScoreEl.textContent = score;
     if(score > bestScore){ bestScore = score; saveBest(bestScore); }
-    bestScoreLine.textContent = 'rekord: ' + bestScore;
+    bestScoreLine.textContent = t('best') + bestScore;
     gameOverScreen.classList.remove('hidden');
     offerScoreEntry(score);
   }
@@ -798,6 +951,7 @@ const APP_VERSION = "0.010.008";
   function backToMenu(){
     state = 'idle';
     exitBtn.classList.remove('visible');
+    langSwitch.classList.remove('hidden');
     playMenuMusic();
     // same hard-clear as starting a new run — don't leave a frozen mid-game or
     // game-over frame behind the (blurred, semi-transparent) start screen.
