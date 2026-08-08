@@ -184,7 +184,30 @@
     font-weight:700;
     font-size:28px;
     color:var(--player);
-    margin:0 0 20px 0;
+    margin:0 0 16px 0;
+  }
+  .lb-tabs{
+    display:flex;
+    gap:8px;
+    margin-bottom:18px;
+  }
+  .lb-tab{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:12px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    padding:8px 18px;
+    border-radius:100px;
+    border:1.5px solid var(--muted);
+    color:var(--muted);
+    background:transparent;
+    cursor:pointer;
+    transition: border-color .2s ease, color .2s ease;
+  }
+  .lb-tab.active{
+    border-color:var(--player);
+    color:var(--player);
   }
   .leaderboard-list{
     width:100%;
@@ -280,6 +303,10 @@
 
 <div class="overlay hidden" id="leaderboardScreen">
   <div class="lb-heading">Ranking</div>
+  <div class="lb-tabs">
+    <button class="lb-tab" id="lbTabMobile" data-platform="MOBILE">Telefon</button>
+    <button class="lb-tab" id="lbTabPc" data-platform="PC">PC</button>
+  </div>
   <div class="leaderboard-list" id="leaderboardList"></div>
   <button class="btn" id="closeLeaderboardBtn">Zamknij</button>
 </div>
@@ -288,7 +315,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.009.005";
+const APP_VERSION = "0.010.000";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -350,6 +377,18 @@ const APP_VERSION = "0.009.005";
   // this tags every read/write so each build only ever sees its own scores.
   const LEADERBOARD_BRANCH = 'DEV';
 
+  // MOBILE vs PC, so the leaderboard can be split by device — touch-primary input
+  // (coarse pointer) is a more reliable signal than user-agent sniffing alone, but
+  // combining both catches edge cases either misses on its own.
+  function detectPlatform(){
+    const ua = navigator.userAgent || '';
+    const isMobileUA = /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua);
+    const isCoarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    return (isMobileUA || isCoarsePointer) ? 'MOBILE' : 'PC';
+  }
+  const PLAYER_PLATFORM = detectPlatform();
+  let leaderboardFilter = PLAYER_PLATFORM; // which tab is showing — defaults to the viewer's own device
+
   let supabaseClientPromise = null;
   function getSupabaseClient(){
     if(!supabaseClientPromise){
@@ -359,12 +398,13 @@ const APP_VERSION = "0.009.005";
     return supabaseClientPromise;
   }
 
-  async function fetchTopScores(){
+  async function fetchTopScores(platform){
     const client = await getSupabaseClient();
     const { data, error } = await client
       .from('swipeecho_scores')
       .select('nickname,score')
       .eq('branch', LEADERBOARD_BRANCH)
+      .eq('platform', platform)
       .order('score', { ascending: false })
       .limit(LEADERBOARD_SIZE);
     if(error) throw error;
@@ -373,7 +413,9 @@ const APP_VERSION = "0.009.005";
 
   async function qualifiesForLeaderboard(candidateScore){
     try{
-      const rows = await fetchTopScores();
+      // always checked against the player's own device leaderboard, regardless of
+      // which tab happens to be open in the ranking screen
+      const rows = await fetchTopScores(PLAYER_PLATFORM);
       if(rows.length < LEADERBOARD_SIZE) return true;
       const lowest = rows[rows.length - 1].score;
       return candidateScore > lowest;
@@ -384,7 +426,9 @@ const APP_VERSION = "0.009.005";
 
   async function submitScore(nickname, scoreValue){
     const client = await getSupabaseClient();
-    const { error } = await client.from('swipeecho_scores').insert({ nickname, score: scoreValue, branch: LEADERBOARD_BRANCH });
+    const { error } = await client.from('swipeecho_scores').insert({
+      nickname, score: scoreValue, branch: LEADERBOARD_BRANCH, platform: PLAYER_PLATFORM
+    });
     if(error) throw error;
   }
 
@@ -414,15 +458,22 @@ const APP_VERSION = "0.009.005";
     });
   }
 
-  async function openLeaderboard(){
-    leaderboardScreen.classList.remove('hidden');
+  const lbTabMobile = document.getElementById('lbTabMobile');
+  const lbTabPc = document.getElementById('lbTabPc');
+  function updateLbTabs(){
+    lbTabMobile.classList.toggle('active', leaderboardFilter === 'MOBILE');
+    lbTabPc.classList.toggle('active', leaderboardFilter === 'PC');
+  }
+
+  async function loadLeaderboardTab(){
+    updateLbTabs();
     leaderboardList.innerHTML = '';
     const loading = document.createElement('div');
     loading.className = 'lb-empty';
     loading.textContent = 'Ładowanie…';
     leaderboardList.appendChild(loading);
     try{
-      const rows = await fetchTopScores();
+      const rows = await fetchTopScores(leaderboardFilter);
       renderLeaderboard(rows);
     }catch(e){
       leaderboardList.innerHTML = '';
@@ -432,6 +483,15 @@ const APP_VERSION = "0.009.005";
       leaderboardList.appendChild(err);
     }
   }
+
+  function openLeaderboard(){
+    leaderboardScreen.classList.remove('hidden');
+    leaderboardFilter = PLAYER_PLATFORM; // reset to "your" tab each time it's opened
+    loadLeaderboardTab();
+  }
+
+  lbTabMobile.addEventListener('click', () => { leaderboardFilter = 'MOBILE'; loadLeaderboardTab(); });
+  lbTabPc.addEventListener('click', () => { leaderboardFilter = 'PC'; loadLeaderboardTab(); });
 
   document.getElementById('rankingBtn').addEventListener('click', openLeaderboard);
   document.getElementById('rankingBtnGameOver').addEventListener('click', openLeaderboard);
