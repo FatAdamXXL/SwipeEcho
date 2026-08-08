@@ -3,9 +3,11 @@
 
 -- Free-tier Supabase has no branch/preview databases, so dev and main share this one
 -- table. The "branch" column keeps their scores separate — the app filters by it.
+-- Nickname length isn't constrained here — the 12-char cap is enforced app-side only
+-- (input maxlength + client-side truncation before insert).
 create table public.swipeecho_scores (
   id bigint generated always as identity primary key,
-  nickname text not null check (char_length(nickname) between 1 and 12),
+  nickname text not null,
   score integer not null check (score >= 0),
   branch text not null check (branch in ('DEV', 'MAIN')),
   -- MOBILE vs PC, detected client-side (touch/coarse-pointer heuristic). Nullable —
@@ -25,12 +27,9 @@ create policy "swipeecho_scores_select"
   to anon
   using (true);
 
--- anyone can add a score, but only within the nickname/score constraints above —
--- no update or delete policies exist, so entries can't be edited or removed via the API
+-- anyone can add a score, but only a valid one — no update or delete policies
+-- exist, so entries can't be edited or removed via the API
 create policy "swipeecho_scores_insert"
   on public.swipeecho_scores for insert
   to anon
-  with check (
-    char_length(nickname) between 1 and 12
-    and score >= 0
-  );
+  with check (score >= 0);
