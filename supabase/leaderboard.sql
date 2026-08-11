@@ -37,7 +37,12 @@ create policy "swipeecho_scores_insert"
 -- deduplicated read view: repeat submissions of the same nickname at the same
 -- score collapse down to the most recent row. The app reads from this view
 -- instead of the raw table for the leaderboard display.
-create or replace view public.swipeecho_leaderboard as
+-- security_invoker makes the view enforce RLS as the querying role instead of
+-- the view owner's — the select policy above is fully public either way, but
+-- this matches Supabase's recommendation and avoids its "Security Definer
+-- view" advisory.
+create or replace view public.swipeecho_leaderboard
+  with (security_invoker = true) as
 select distinct on (branch, platform, nickname, score)
   id, nickname, score, branch, platform, created_at
 from public.swipeecho_scores
