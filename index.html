@@ -348,7 +348,7 @@
 /* Konwencja wersjonowania jak w Ubieranko: MAJOR.MILESTONE.PATCH, start od 0.000.001.
    Trzeci człon rośnie przy drobnych poprawkach, drugi (z resetem trzeciego do 000) przy
    nowych funkcjach/kamieniach milowych. */
-const APP_VERSION = "0.011.001";
+const APP_VERSION = "0.011.002";
 
 (() => {
   const canvas = document.getElementById('game');
@@ -552,17 +552,35 @@ const APP_VERSION = "0.011.001";
     return supabaseClientPromise;
   }
 
+  // collapse repeat submissions of the same nickname+score down to the most recent
+  // one — rows arrive ordered score desc, created_at desc, so the first occurrence
+  // of each key is already the freshest.
+  function dedupeScores(rows){
+    const seen = new Set();
+    const out = [];
+    for(const row of rows){
+      const key = row.nickname + ' ' + row.score;
+      if(seen.has(key)) continue;
+      seen.add(key);
+      out.push(row);
+    }
+    return out;
+  }
+
   async function fetchTopScores(platform){
     const client = await getSupabaseClient();
+    // fetched with headroom beyond LEADERBOARD_SIZE so duplicate nickname+score
+    // submissions can be collapsed before trimming to the final list.
     const { data, error } = await client
       .from('swipeecho_scores')
-      .select('nickname,score')
+      .select('nickname,score,created_at')
       .eq('branch', LEADERBOARD_BRANCH)
       .eq('platform', platform)
       .order('score', { ascending: false })
-      .limit(LEADERBOARD_SIZE);
+      .order('created_at', { ascending: false })
+      .limit(LEADERBOARD_SIZE * 3);
     if(error) throw error;
-    return data;
+    return dedupeScores(data).slice(0, LEADERBOARD_SIZE);
   }
 
   async function qualifiesForLeaderboard(candidateScore){
