@@ -1,15 +1,16 @@
 -- SwipeEcho global leaderboard (top 25)
 -- Run this once in the Supabase SQL Editor for the project.
 
--- Free-tier Supabase has no branch/preview databases, so dev and main share this one
--- table. The "branch" column keeps their scores separate — the app filters by it.
+-- Free-tier Supabase has no branch/preview databases, so dev, main, and the itch.io
+-- build all share this one table. The "branch" column keeps their scores separate —
+-- the app filters by it.
 -- Nickname length isn't constrained here — the 12-char cap is enforced app-side only
 -- (input maxlength + client-side truncation before insert).
 create table public.swipeecho_scores (
   id bigint generated always as identity primary key,
   nickname text not null,
   score integer not null check (score >= 0),
-  branch text not null check (branch in ('DEV', 'MAIN')),
+  branch text not null check (branch in ('DEV', 'MAIN', 'ITCH')),
   -- MOBILE vs PC, detected client-side (touch/coarse-pointer heuristic). Nullable —
   -- rows from before this column existed can't be attributed after the fact.
   platform text check (platform in ('MOBILE', 'PC')),
