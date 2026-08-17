@@ -518,7 +518,7 @@ const APP_VERSION = "0.011.004";
   const LEADERBOARD_SIZE = 100;
   // Free-tier Supabase has no per-branch database, so dev and main share one table —
   // this tags every read/write so each build only ever sees its own scores.
-  const LEADERBOARD_BRANCH = 'MAIN';
+  const LEADERBOARD_BRANCH = 'ITCH';
 
   // MOBILE vs PC, so the leaderboard can be split by device — touch-primary input
   // (coarse pointer) is a more reliable signal than user-agent sniffing alone, but
@@ -1101,14 +1101,6 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });
 }
-</script>
-
-<!-- Vercel Web Analytics — no build step here, so inject() is loaded straight from a
-     CDN (same pattern as the Supabase client below) instead of via npm/@vercel/analytics.
-     inject() only sends data when actually running on Vercel; it's a no-op elsewhere
-     (localhost, GitHub Pages), and fails silently if the import itself can't load. -->
-<script type="module">
-  import('https://esm.sh/@vercel/analytics').then(({ inject }) => inject()).catch(() => {});
 </script>
 </body>
 </html>

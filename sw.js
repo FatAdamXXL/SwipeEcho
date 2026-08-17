@@ -1,4 +1,4 @@
-const CACHE_NAME = "swipeecho-v18";
+const CACHE_NAME = "swipeecho-itch-v1";
 
 const SHELL_URLS = [
   "./",
