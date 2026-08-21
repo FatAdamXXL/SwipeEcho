@@ -314,7 +314,7 @@
   <button class="btn" id="startBtn">Start</button>
   <button class="btn btn-secondary visible" id="rankingBtn">Leaderboard</button>
   <button class="btn btn-secondary" id="installBtn">Install</button>
-  <button class="mute-btn" id="muteBtn" aria-label="Mute menu music">🔊</button>
+  <button class="mute-btn" id="muteBtn" aria-label="Mute sound">🔊</button>
   <div class="version-badge" id="versionBadge"></div>
   <button class="btn btn-secondary btn-muted" id="exitAppBtn">Exit</button>
 </div>
@@ -379,8 +379,8 @@ const APP_VERSION = "0.011.004";
       install: 'Install',
       exit: 'Exit',
       exitToMenu: 'Back to menu',
-      muteMenuMusic: 'Mute menu music',
-      unmuteMenuMusic: 'Unmute menu music',
+      muteMenuMusic: 'Mute sound',
+      unmuteMenuMusic: 'Unmute sound',
       gameOver: 'game over',
       best: 'best: ',
       top100: "You're in the TOP 100!",
@@ -410,8 +410,8 @@ const APP_VERSION = "0.011.004";
       install: 'Zainstaluj',
       exit: 'Wyjdź',
       exitToMenu: 'Wróć do menu',
-      muteMenuMusic: 'Wycisz muzykę menu',
-      unmuteMenuMusic: 'Włącz muzykę menu',
+      muteMenuMusic: 'Wycisz dźwięk',
+      unmuteMenuMusic: 'Włącz dźwięk',
       gameOver: 'przegrałeś',
       best: 'rekord: ',
       top100: 'Łapiesz się do TOP 100!',
@@ -726,7 +726,11 @@ const APP_VERSION = "0.011.004";
   menuMusic.loop = true;
   menuMusic.volume = 0.45125; // another 5% down from 0.475
 
-  // menu mute only affects the menu theme — never the in-run main theme or sfx
+  // mute applies to everything: menu theme (via the <audio> element's .muted)
+  // plus the in-run main theme and sfx, which run through masterGain below.
+  // (declared here, ahead of the audioCtx setup, so applyMenuMuted's initial
+  // call below doesn't hit it before its own declaration has run)
+  let masterGain = null;
   const MUTE_KEY = 'echo-menu-muted';
   const muteBtn = document.getElementById('muteBtn');
   function loadMenuMuted(){
@@ -738,6 +742,7 @@ const APP_VERSION = "0.011.004";
   let menuMuted = loadMenuMuted();
   function applyMenuMuted(){
     menuMusic.muted = menuMuted;
+    if(masterGain) masterGain.gain.value = menuMuted ? 0 : 1;
     muteBtn.textContent = menuMuted ? '🔇' : '🔊';
     muteBtn.setAttribute('aria-label', menuMuted ? t('unmuteMenuMusic') : t('muteMenuMusic'));
   }
@@ -758,7 +763,12 @@ const APP_VERSION = "0.011.004";
   let mainThemeSource = null;
 
   function getAudioCtx(){
-    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = menuMuted ? 0 : 1;
+      masterGain.connect(audioCtx.destination);
+    }
     return audioCtx;
   }
   function loadMainTheme(){
@@ -784,7 +794,7 @@ const APP_VERSION = "0.011.004";
       const osc = ctx.createOscillator();
       osc.type = 'triangle'; // rounder, bassier than square's buzzy harmonics
       const gain = ctx.createGain();
-      osc.connect(gain).connect(ctx.destination);
+      osc.connect(gain).connect(masterGain);
 
       osc.frequency.setValueAtTime(494, now);         // B4 — down an octave
       osc.frequency.setValueAtTime(784, now + 0.06);  // G5 — down an octave
@@ -822,7 +832,7 @@ const APP_VERSION = "0.011.004";
       source.loop = true;
       const gain = ctx.createGain();
       gain.gain.value = MAIN_THEME_VOLUME;
-      source.connect(gain).connect(ctx.destination);
+      source.connect(gain).connect(masterGain);
       source.start(0);
       mainThemeSource = source;
     }catch(e){}
